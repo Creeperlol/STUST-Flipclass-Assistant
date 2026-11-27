@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.10.1
+// @version      1.11.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -107,11 +107,20 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     ['border-top-color', mapBorder], ['border-right-color', mapBorder],
     ['border-bottom-color', mapBorder], ['border-left-color', mapBorder],
   ];
-  function darkDecl(style, forceImportant) {
+  // 網站的 a:hover 有好幾種藍（#23527c、#000099…），換算後會偏亮或偏紫；
+  // 藍色系一律用跟一般連結相同的藍，其他顏色保持色相
+  function hoverColor(c) {
+    const [h, s] = toHsl(c);
+    return h >= 190 && h <= 260 ? hsla(210, 0.78, 0.617, c[3]) : hsla(h, Math.min(s * 1.4, 0.9), 0.617, c[3]);
+  }
+  function darkDecl(style, forceImportant, hover, sel = '') {
     let out = '';
     for (const [prop, fn] of MAPS) {
       const c = parseColor(style.getPropertyValue(prop));
-      const v = c && fn(c);
+      // 連結滑過（:hover）時跟 GitHub 一樣：顏色不變（網站原本會換深藍，換算後反而變亮），只靠底線
+      const v = c && (hover && prop === 'color' && toHsl(c)[1] > 0.3
+        ? hoverColor(c) : fn(c));
+      if (v && hover && prop === 'color' && toHsl(c)[1] > 0.3 && /(^|[\s>+~,(])a[:.\[]/.test(sel)) out += 'text-decoration:underline;';
       if (v) out += `${prop}:${v}${forceImportant || style.getPropertyPriority(prop) ? '!important' : ''};`;
     }
     // 淺色漸層背景直接換成單色
@@ -138,7 +147,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     let css = '';
     for (const r of rules) {
       if (r.selectorText && r.style) {
-        const d = darkDecl(r.style, false);
+        const d = darkDecl(r.style, false, /:(hover|focus|active)/.test(r.selectorText), r.selectorText);
         if (d) css += `${splitSelectors(r.selectorText)}{${d}}\n`;
       } else if (r.media && r.cssRules) {
         const inner = walkRules(r.cssRules);
@@ -167,20 +176,37 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     }
     if (css) darkInline.textContent += css;
   }
-  const builtSheets = new Set();
-  function buildDark() {
-    let css = '', changed = false;
+  // 換算好的深色 CSS 存起來（依網站 CSS 檔案清單當 key），下一頁直接套用，
+  // 不用再等頁面載完、也不用重算。網站 CSS 改版時 key 會變，自動重算。
+  const DARK_CSS_KEY = 'fca-dark-css-v1';
+  let darkKey = '';
+  try {
+    const c = JSON.parse(localStorage.getItem(DARK_CSS_KEY) || 'null');
+    if (c && c.css) { darkKey = c.key; darkDyn.textContent = c.css; }
+  } catch (e) { /* ignore */ }
+  function sheetKey() {
+    const parts = [];
     for (const sh of document.styleSheets) {
       if (sh.ownerNode === darkBase || sh.ownerNode === darkDyn || sh.ownerNode === darkInline) continue;
-      let rules;
-      try { rules = sh.cssRules; } catch (e) { continue; } // 跨網域的 CSS 讀不到就跳過
-      if (!builtSheets.has(sh)) { builtSheets.add(sh); changed = true; }
-      css += walkRules(rules);
+      try { parts.push((sh.href || 'inline') + '#' + sh.cssRules.length); } catch (e) { /* 跨網域 */ }
     }
-    if (changed || !darkDyn.isConnected) {
+    return 'map5|' + parts.join('|');
+  }
+  function buildDark() {
+    const key = sheetKey();
+    if (key !== darkKey) {
+      let css = '';
+      for (const sh of document.styleSheets) {
+        if (sh.ownerNode === darkBase || sh.ownerNode === darkDyn || sh.ownerNode === darkInline) continue;
+        let rules;
+        try { rules = sh.cssRules; } catch (e) { continue; } // 跨網域的 CSS 讀不到就跳過
+        css += walkRules(rules);
+      }
+      darkKey = key;
       darkDyn.textContent = css;
-      document.head.append(darkDyn, darkInline);
+      try { localStorage.setItem(DARK_CSS_KEY, JSON.stringify({ key, css })); } catch (e) { /* ignore */ }
     }
+    if (document.head && darkDyn.parentNode !== document.head) document.head.append(darkDyn, darkInline);
   }
   let darkReady = false, darkObserver = null;
   function ensureDark() {
@@ -207,6 +233,10 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     if (save) { try { localStorage.setItem(DARK_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ } }
     darkHooks.forEach(f => f(on));
   }
+  if (darkDyn.textContent) {
+    (document.head || document.documentElement).append(darkDyn, darkInline);
+    document.documentElement.setAttribute('data-fca-ready', ''); // 有快取就不用先藏起來等
+  }
   setDark(darkPref(), false);
   // 萬一出錯也不要讓頁面一直隱藏
   setTimeout(() => document.documentElement.setAttribute('data-fca-ready', ''), 2500);
@@ -214,13 +244,13 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.10.1';
+    let VERSION = '1.11.0';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
 
     const CACHE_KEY = 'fca-cache-v1';
-    const CACHE_MS = 10 * 60 * 1000; // 10 分鐘內換頁不重抓
+    const CACHE_MS = 30 * 60 * 1000; // 30 分鐘內換頁不重抓（按重新整理隨時可更新）
 
     // ---------- 資料 ----------
     async function fetchDoc(path) {
@@ -234,7 +264,9 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     }
 
     async function getCourses() {
-      const { doc, url } = await fetchDoc('/dashboard');
+      // 人就在首頁的話直接讀目前頁面，少抓一次
+      const { doc, url } = location.pathname === '/dashboard'
+        ? { doc: document, url: location.href } : await fetchDoc('/dashboard');
       if (isLoginPage(url, doc)) return null;
       const map = new Map();
       doc.querySelectorAll('a[href]').forEach(a => {
@@ -289,6 +321,20 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       return out;
     }
 
+    async function mapLimit(arr, n, fn) {
+      const out = new Array(arr.length);
+      let i = 0;
+      await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => {
+        while (i < arr.length) { const k = i++; out[k] = await fn(arr[k]); }
+      }));
+      return out;
+    }
+    // 等頁面自己載完、瀏覽器空閒時才做背景工作
+    function whenIdle(fn) {
+      const go = () => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 800));
+      if (document.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
+    }
+
     async function loadAll(force) {
       if (!force) {
         try {
@@ -299,7 +345,8 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       const courses = await getCourses();
       if (!courses) return null; // 沒登入
       const now = new Date();
-      const lists = await Promise.all(courses.map(c => getHomework(c, now).catch(() => [])));
+      // 一次最多同時抓 3 門課，不要把網站自己載入頁面需要的連線佔滿
+      const lists = await mapLimit(courses, 3, c => getHomework(c, now).catch(() => []));
       const data = { time: Date.now(), items: lists.flat() };
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
       return data;
@@ -588,7 +635,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     async function refresh(force) {
       const btn = $('.refresh');
       btn.classList.add('spin');
-      if (!data || force) skeleton();
+      if (!data) skeleton();
       try {
         data = await loadAll(force);
       } catch (e) {
@@ -885,8 +932,16 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       applyAvatar();
     }
 
+    // 開頁時：有快取先直接顯示；快取過期才在背景（頁面載完、空閒時）更新
+    function startup() {
+      let c = null;
+      try { c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) { /* ignore */ }
+      if (c && c.items) { data = c; render(); } else skeleton();
+      if (!c || Date.now() - c.time >= CACHE_MS) whenIdle(() => refresh(true));
+    }
+
     // 登入頁不載入
-    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); mountAvatar(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); skeleton(); refresh(false); }
+    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); mountAvatar(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); startup(); }
     else host.remove();
   }
 
