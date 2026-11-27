@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.9.0
+// @version      1.9.1
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -27,23 +27,34 @@
   const D = 'html[data-fca-dark]';
   const darkBase = document.createElement('style');
   darkBase.id = 'fca-dark-base';
+  // 配色照 GitHub 深色主題：頁面 #0d1117、上方列 #010409、框線 #30363d、
+  // 次要底色 #151b23、文字 #f0f6fc / #9198a1、連結 #4493f8
   darkBase.textContent = `
-${D}{color-scheme:dark;background:#1e2126!important}
-${D} body{background:#1e2126!important;color:#d6dae0}
+${D}{color-scheme:dark;background:#0d1117!important}
+${D} body{background:#0d1117!important;color:#f0f6fc}
 ${D}:not([data-fca-ready]) body{visibility:hidden}
-${D} :is(input,textarea,select){background-color:#262a30;color:#d6dae0;border-color:#41464e}
+${D} :is(input,textarea,select){background-color:#0d1117;color:#f0f6fc;border-color:#3d444d}
+${D} :is(input,textarea,select):focus{border-color:#1f6feb}
 ${D} :is(img:not(.fs-logo),.img-container,.fs-banner){filter:brightness(.88)}
-${D} .fs-banner{border-color:#1e2126!important}
-${D} ${NAV}{background:#16181c!important;border-color:#16181c!important;box-shadow:none!important;background-image:none!important}
-${D} ${NAV} :is(.navbar-brand,.navbar-nav>li>a,.navbar-toggle){color:#e4e7eb!important;background:transparent!important}
+${D} .fs-banner{border-color:#30363d!important}
+${D} ${NAV}{background:#010409!important;border-color:#30363d!important;border-width:0 0 1px!important;border-style:solid!important;
+  box-shadow:none!important;background-image:none!important}
+${D} ${NAV} :is(.navbar-brand,.navbar-nav>li>a,.navbar-toggle){color:#f0f6fc!important;background:transparent!important}
 ${D} ${NAV} :is(.navbar-brand,.navbar-nav>li>a,.navbar-toggle):is(:hover,:focus),
-${D} ${NAV} .navbar-nav>.open>a{background:#2a2e35!important;color:#fff!important;outline:none}
-${D} ${NAV} .dropdown-menu{background:#24282e!important;border-color:#363b43!important}
-${D} ${NAV} .dropdown-menu>li>a{color:#d6dae0!important}
-${D} ${NAV} .dropdown-menu>li>a:is(:hover,:focus){background:#30353c!important;color:#fff!important}
-${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#2a2e35!important}
+${D} ${NAV} .navbar-nav>.open>a{background:#151b23!important;color:#f0f6fc!important;outline:none}
+${D} ${NAV} .dropdown-menu{background:#151b23!important;border:1px solid #3d444d!important;box-shadow:0 8px 24px rgba(1,4,9,.75)!important}
+${D} ${NAV} .dropdown-menu>li>a{color:#f0f6fc!important}
+${D} ${NAV} .dropdown-menu>li>a:is(:hover,:focus){background:#212830!important;color:#f0f6fc!important}
+${D} ${NAV} .divider{background:#3d444d!important}
+${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#30363d!important}
+${D} .fca-about a{color:#9198a1!important}
+${D} .fca-about a:hover{color:#4493f8!important}
 .fca-theme:focus{outline:none}
-@media (max-width:1199px){.fca-about{display:none!important}}`;
+.fca-about{position:absolute;right:16px;top:0;list-style:none}
+.fca-about a{display:block;padding:11px 0 10px;font-size:11px;line-height:14px;text-align:right;font-weight:400;opacity:.8;
+  color:inherit;text-decoration:none}
+.fca-about a:hover{opacity:1;text-decoration:none}
+@media (max-width:1599px){.fca-about{display:none!important}}`;
   (document.head || document.documentElement).appendChild(darkBase);
 
   // 顏色換算（HSL）
@@ -69,17 +80,26 @@ ${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#2a2e35!important}
     return [h * 60, s, l];
   }
   const hsla = (h, s, l, a) => `hsla(${h.toFixed(0)},${(s * 100).toFixed(1)}%,${(l * 100).toFixed(1)}%,${a})`;
-  function mapBg(c) { // 淺色背景 → 深灰；本來就深的（按鈕、導覽列）不動
-    const [h, s, l] = toHsl(c);
-    return l < 0.55 ? null : hsla(h, s * 0.35, 0.145 + (1 - l) * 0.45, c[3]);
+  // 沒什麼彩度的顏色一律用 GitHub 的藍灰色調（色相 215）
+  const neutral = (h, s) => (s < 0.15 ? [215, 0.2] : [h, Math.min(s, 0.45)]);
+  function mapBg(c) { // 淺色背景 → #0d1117 / #151b23 / #212830；本來就深的（按鈕）不動
+    const [h0, s0, l] = toHsl(c);
+    if (l < 0.55) return null;
+    const [h, s] = neutral(h0, s0);
+    return hsla(h, s0 < 0.15 ? s : s * 0.5, Math.min(0.07 + (1 - l) * 1.1, 0.2), c[3]);
   }
-  function mapFg(c) { // 深色文字 → 淺色；本來就淺的（按鈕上的白字）不動
+  function mapFg(c) { // 深色文字 → #f0f6fc（主要）/ #9198a1（次要）；彩色文字（連結）→ 像 #4493f8
     const [h, s, l] = toHsl(c);
-    return l > 0.62 ? null : hsla(h, Math.min(s, 0.55), Math.min(0.9, 0.86 - l * 0.4 + (s > 0.3 ? 0.04 : 0)), c[3]);
+    if (l > 0.62) return null;
+    if (s > 0.3) return hsla(h, Math.min(s * 1.4, 0.9), Math.max(0.58, Math.min(0.72, 0.62 + (0.45 - l) * 0.3)), c[3]);
+    const nl = l < 0.3 ? 0.96 - l * 0.4 : 0.6;
+    return hsla(215, l < 0.3 ? 0.6 : 0.08, nl, c[3]);
   }
-  function mapBorder(c) {
-    const [h, s, l] = toHsl(c);
-    return l < 0.5 ? null : hsla(h, s * 0.3, 0.2 + (1 - l) * 0.4, c[3]);
+  function mapBorder(c) { // 淺色框線 → #30363d
+    const [h0, s0, l] = toHsl(c);
+    if (l < 0.5) return null;
+    const [h, s] = s0 < 0.15 ? [213, 0.12] : [h0, s0 * 0.4];
+    return hsla(h, s, Math.min(0.21 + (1 - l) * 0.2, 0.27), c[3]);
   }
   const MAPS = [
     ['background-color', mapBg], ['color', mapFg],
@@ -193,7 +213,7 @@ ${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#2a2e35!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.9.0';
+    let VERSION = '1.9.1';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
@@ -572,12 +592,12 @@ ${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#2a2e35!important}
         li0.before(li);
 
         // 右上角：插件名稱和版本，點了開 GitHub
-        const about = document.createElement('li');
+        const nav = li0.closest('nav');
+        const about = document.createElement('div');
         about.className = 'fca-nav fca-about';
-        about.innerHTML = `<a href="${REPO}" target="_blank" rel="noopener" title="GitHub"
-          style="padding-top:12px;padding-bottom:11px;font-size:10.5px;line-height:13px;text-align:right;font-weight:400;opacity:.7">
-          STUST Flipclass Assistant<br>v${VERSION}</a>`;
-        li0.parentElement.appendChild(about);
+        about.innerHTML = `<a href="${REPO}" target="_blank" rel="noopener" title="GitHub">STUST Flipclass Assistant<br>v${VERSION}</a>`;
+        if (getComputedStyle(nav).position === 'static') nav.style.position = 'relative';
+        nav.appendChild(about);
         $('.fab').classList.add('nd');
       }
 
