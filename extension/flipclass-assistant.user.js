@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.6.0
+// @version      1.6.1
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -305,10 +305,7 @@ button{font:inherit;color:inherit}
     const badge = $('.fab .b');
     badge.textContent = n.todo;
     badge.classList.toggle('ok', n.todo === 0);
-    document.querySelectorAll('.fca-nav-badge').forEach(b => {
-      b.textContent = n.todo;
-      b.style.color = n.todo === 0 ? '#2f8a5b' : '#c8423a';
-    });
+    document.querySelectorAll('.fca-nav-badge').forEach(b => { b.textContent = `(${n.todo})`; });
 
     $('.meta').textContent = T.updated(fmt(data.time), items.length);
     $('.stats').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
@@ -362,8 +359,7 @@ button{font:inherit;color:inherit}
   // ---------- 放進網站導覽列 ----------
   // 電腦版：上方導覽列「我的課程」左邊；手機版：上方 ☰ 列、👤 圖示左邊。
   // 找不到導覽列的頁面才用右下角浮動按鈕。
-  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#c8423a;border-radius:4px;' +
-    'padding:0 7px;margin-left:6px;font-size:12px;line-height:18px;font-weight:600;min-width:20px;text-align:center';
+  const BADGE_STYLE = 'margin-left:4px';
   function mountNav() {
     const open = e => { e.preventDefault(); setOpen(true); };
 
@@ -372,7 +368,7 @@ button{font:inherit;color:inherit}
     if (li0) {
       const li = document.createElement('li');
       li.className = 'fca-nav';
-      li.innerHTML = `<a href="#" title="${T.title}"><span class="text">${T.fab}</span><span class="fca-nav-badge" style="${BADGE_STYLE}">…</span></a>`;
+      li.innerHTML = `<a href="#" title="${T.title}"><span class="text">${T.fab}</span><span class="fca-nav-badge" style="${BADGE_STYLE}"></span></a>`;
       li.firstChild.addEventListener('click', open);
       li0.before(li);
       $('.fab').classList.add('nd');
@@ -385,7 +381,7 @@ button{font:inherit;color:inherit}
       a.className = 'navbar-brand fca-nav';
       a.title = T.title;
       a.setAttribute('aria-label', T.title);
-      a.innerHTML = `<span class="font-icon far fa-clipboard" aria-hidden="true"></span><span class="fca-nav-badge" style="${BADGE_STYLE}">…</span>`;
+      a.innerHTML = `<span class="font-icon far fa-clipboard" aria-hidden="true"></span><span class="fca-nav-badge" style="${BADGE_STYLE}"></span>`;
       a.addEventListener('click', open);
       btns.prepend(a);
       $('.fab').classList.add('nm');
