@@ -1,90 +1,33 @@
 # STUST Flipclass Assistant
 
-南臺科技大學 [FlipClass](https://flipclass.stust.edu.tw/) 作業總覽小工具。
+南臺科技大學 [FlipClass](https://flipclass.stust.edu.tw/) 優化輔助插件
 
-FlipClass 首頁的 Recent Event 只列出還沒過期的作業，也看不出自己交了沒。這個工具會把所有課程的作業抓下來，分成三類：
+## 安裝方法（電腦 Chrome / Edge）
 
-- ✅ **已繳交**
-- ⏳ **未繳（進行中）**：顯示剩餘時間
-- ❌ **未繳（已過期）**
+### 方法 A：Tampermonkey
 
-有兩種用法：
-
-| | 瀏覽器插件（推薦） | Python 腳本 |
-|---|---|---|
-| 適用 | 電腦、Android 手機 | 電腦 |
-| 登入 | 用瀏覽器裡已登入的狀態，**不需要帳號密碼** | 自動登入，帳號密碼放在 `.env` |
-| 顯示 | FlipClass 上方導覽列的「作業」按鈕 | 終端機＋ `homework_report.html` |
-
----
-
-## 瀏覽器插件
-
-安裝後，登入 FlipClass，上方導覽列會多一個 **「作業」** 按鈕（電腦版在「我的課程」左邊，手機版是 👤 左邊的 📋 圖示；沒有導覽列的頁面則顯示在右下角），數字是還沒繳交、也還沒過期的作業數量。點開就能依狀態篩選，點作業會直接進入作業頁。資料會快取 10 分鐘，按「重新整理」可立即更新。介面語言會跟著 FlipClass 右上角選的語言（English／繁體／简体）。
-
-### Android 手機
-
-1. 安裝 **Firefox**（或 **Microsoft Edge**）。
-2. 在 Firefox 選單 →「擴充套件」中安裝 **Tampermonkey**（Edge：選單 →「擴充功能」）。
-3. 用同一個瀏覽器打開這個網址，Tampermonkey 會跳出安裝畫面，按「安裝」：
+A-1. 安裝 Tampermonkey 擴充功能：
+   - Chrome：<https://chromewebstore.google.com/detail/dhdgffkkebhmkfjojejmpbldmpobfkfo>
+   - Edge：<https://microsoftedge.microsoft.com/addons/detail/iikmkjmpaadaobahmlepeloendndfphd>
+A-2. 打開下面的網址，Tampermonkey 會跳出安裝畫面，按「安裝」：
    <https://raw.githubusercontent.com/Creeperlol/STUST-Flipclass-Assistant/main/extension/flipclass-assistant.user.js>
-4. 打開 FlipClass 並登入，上方導覽列就會出現「作業」按鈕。
+A-3. 打開 [FlipClass](https://flipclass.stust.edu.tw/) 並登入。
 
-腳本更新後 Tampermonkey 會自動更新。
+腳本更新後，Tampermonkey 會自動更新。
 
-### Android 手機用 Chrome（書籤小程式）
+### 方法 B：直接載入擴充功能
 
-手機版 Chrome 不能裝擴充功能，可以改用書籤。每次使用都會載入最新版，不需要更新。
+B-1. 下載或 clone 這個 repo（ **Code** → **Download ZIP**，下載後解壓縮）。
+B-2. 打開 `chrome://extensions`（Edge 是 `edge://extensions`），開啟右上角的「開發人員模式」。
+B-3. 按「載入未封裝項目」，選擇 `extension` 資料夾。
+B-4. 打開 [FlipClass](https://flipclass.stust.edu.tw/) 並登入。
 
-1. 在 Chrome 隨便把一個網頁加入書籤（右上角 ⋮ → ☆）。
-2. 到 ⋮ →「書籤」，找到剛剛那個書籤，按 ⋮ →「編輯」：
-   - 名稱改成 **`fca`**
-   - 網址整段換成下面這串（按程式碼框右上角的複製按鈕）：
+> 方法 B 不會自動更新，有新版時要重新下載，並到擴充功能頁點擊「重新載入」。
 
-```
-javascript:(function(){var h=document.getElementById('fca-host');if(h){h.shadowRoot.querySelector('.fab').click();return}fetch('https://raw.githubusercontent.com/Creeperlol/STUST-Flipclass-Assistant/main/extension/flipclass-assistant.user.js').then(function(r){return r.text()}).then(function(c){(0,eval)(c);var n=0,t=setInterval(function(){var h=document.getElementById('fca-host');if(h){clearInterval(t);h.shadowRoot.querySelector('.fab').click()}else if(++n>50)clearInterval(t)},100)}).catch(function(e){alert('FlipClass Assistant: '+e)})})()
-```
-
-3. 登入 FlipClass 後，點網址列輸入 **`fca`**，在建議清單中點 **有星號 ☆ 的那個書籤**（不要直接按 Enter，那樣會變成搜尋）。作業面板就會打開。
-
-### 電腦（Chrome / Edge）
-
-**方法 A：Tampermonkey**（和手機一樣，會自動更新）
-安裝 Tampermonkey 擴充功能後，打開上面的網址並按「安裝」。
-
-**方法 B：直接載入擴充功能**
-1. 下載或 clone 這個 repo。
-2. 打開 `chrome://extensions`（Edge 是 `edge://extensions`），開啟「開發人員模式」。
-3. 按「載入未封裝項目」，選擇 `extension` 資料夾。
-
----
-
-## Python 腳本
-
-需要 Python 3.10+。
-
-```powershell
-pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env   # 填入 FLIPCLASS_ACCOUNT 和 FLIPCLASS_PASSWORD
-```
-
-`.env` 已列在 `.gitignore`，不會被 commit。
-
-```powershell
-python flipclass_homework.py           # 產生報表並用瀏覽器打開
-python flipclass_homework.py --no-open # 只產生報表
-```
-
-如果帳號已在其他地方登入，腳本會選「保持登入」，不會把其他裝置踢掉。
-
----
 
 ## 說明
 
-- 資料來源是每門課的 `/course/homeworkList/{課程ID}` 頁面。
-- 列表上的日期沒有年份，工具依目前學期推算；只有日期沒時間的期限視為當天 23:59。
-- 目前只處理「作業」，不含測驗和問卷。
+- wip
 
 ## 授權
 
