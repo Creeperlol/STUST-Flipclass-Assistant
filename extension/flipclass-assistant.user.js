@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.11.1
+// @version      1.12.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -273,7 +273,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.11.1';
+    let VERSION = '1.12.0';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
@@ -391,7 +391,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
     const I18N = {
       en: {
-        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', avatar: 'Change photo', avatarReset: 'Reset photo', crop: 'Adjust photo', cropHint: 'Drag to move · scroll or slide to zoom', save: 'Save', cancel: 'Cancel', zoom: 'Zoom',
+        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', noLate: 'No late submission', avatar: 'Change photo', avatarReset: 'Reset photo', crop: 'Adjust photo', cropHint: 'Drag to move · scroll or slide to zoom', save: 'Save', cancel: 'Cancel', zoom: 'Zoom',
         todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All',
         updated: (t, n) => `Updated ${t} · ${n} total`,
         left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
@@ -399,7 +399,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: 'No matching assignments', error: 'Failed to load. Tap refresh to try again.',
       },
       'zh-TW': {
-        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', avatar: '更換頭像', avatarReset: '還原頭像', crop: '調整頭像', cropHint: '拖曳移動位置・滾輪或拉桿縮放', save: '儲存', cancel: '取消', zoom: '縮放',
+        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', noLate: '不可遲交', avatar: '更換頭像', avatarReset: '還原頭像', crop: '調整頭像', cropHint: '拖曳移動位置・滾輪或拉桿縮放', save: '儲存', cancel: '取消', zoom: '縮放',
         todo: '進行中', missed: '已過期', done: '已繳交', all: '全部',
         updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
@@ -407,7 +407,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: '找不到符合的作業', error: '讀取失敗，請按重新整理再試一次',
       },
       'zh-CN': {
-        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', avatar: '更换头像', avatarReset: '还原头像', crop: '调整头像', cropHint: '拖动移动位置・滚轮或拉杆缩放', save: '保存', cancel: '取消', zoom: '缩放',
+        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', noLate: '不可迟交', avatar: '更换头像', avatarReset: '还原头像', crop: '调整头像', cropHint: '拖动移动位置・滚轮或拉杆缩放', save: '保存', cancel: '取消', zoom: '缩放',
         todo: '进行中', missed: '已过期', done: '已缴交', all: '全部',
         updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
@@ -540,6 +540,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   .idx{font-size:12px;color:var(--dim);letter-spacing:1px}
   .tag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:0;white-space:nowrap;background:var(--c);color:#111}
   .item.done .tag{background:transparent;color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+  .tag.nolate{background:transparent;color:var(--missed);box-shadow:inset 0 0 0 1px var(--missed)}
   .left{margin-left:auto;font-size:13px;font-weight:600;white-space:nowrap;color:var(--sub);letter-spacing:.5px}
   .left.soon{color:var(--todo)}
   .left.urgent{color:var(--missed)}
@@ -652,13 +653,49 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         const score = h.st === 'done' && h.score && h.score !== '-' ? `<span class="score">${esc(h.score)}</span>` : '';
         return `
         <a class="item ${h.st}" href="${esc(h.href)}" style="animation-delay:${Math.min(i, 12) * 28}ms">
-          <div class="top-row"><span class="idx">${String(i + 1).padStart(2, '0')}</span><span class="tag">${TG[h.st]}</span>
+          <div class="top-row"><span class="idx">${String(i + 1).padStart(2, '0')}</span><span class="tag">${TG[h.st]}</span>${h.st === 'missed' && lateOK(h) === false ? `<span class="tag nolate">${T.noLate}</span>` : ''}
             ${left ? `<span class="left ${left.cls}">${left.text}</span>` : score}</div>
           <div class="title">${esc(h.title)}</div>
           <div class="sub"><span>${ICON.cal}${h.deadline ? fmt(h.deadline) : esc(h.termText)}</span>
             <span>${ICON.book}${esc(h.course)}</span></div>
         </a>`;
       }).join('') : `<div class="msg">${q ? T.noMatch : T.empty}</div>`;
+    }
+
+    // ---------- 是否允許遲交（只查已過期的，查過就記住） ----------
+    // 作業列表沒有這個欄位，要看作業內容頁的「Allow late submission / 允許遲交」那一行
+    const LATE_KEY = 'fca-late-v1';
+    let late = {};
+    try { late = JSON.parse(localStorage.getItem(LATE_KEY) || '{}') || {}; } catch (e) { /* ignore */ }
+    const hwId = h => (String(h.href).match(/\/course\/homework\/(\d+)/) || [])[1];
+    function lateOK(h) { const id = hwId(h); return id && id in late ? late[id] : undefined; }
+    async function fetchLate(h) {
+      const { doc } = await fetchDoc(h.href);
+      for (const dt of doc.querySelectorAll('dt')) {
+        if (!/late|遲交|迟交|補交|补交|逾期/i.test(dt.textContent)) continue;
+        const dd = dt.nextElementSibling;
+        if (!dd) break;
+        const v = dd.textContent.trim();
+        return !/^(no|否|不)/i.test(v) && !/不允許|不允许|不可/.test(v);
+      }
+      return undefined; // 頁面上沒有這一行
+    }
+    let lateBusy = false;
+    function checkLate() {
+      if (lateBusy || !data) return;
+      const now = Date.now();
+      const todo = data.items.filter(h => statusOf(h, now) === 'missed' && hwId(h) && !(hwId(h) in late));
+      if (!todo.length) return;
+      lateBusy = true;
+      whenIdle(async () => {
+        try {
+          await mapLimit(todo, 3, async h => {
+            try { const v = await fetchLate(h); if (v !== undefined) late[hwId(h)] = v; } catch (e) { /* 下次再試 */ }
+          });
+          try { localStorage.setItem(LATE_KEY, JSON.stringify(late)); } catch (e) { /* ignore */ }
+          render();
+        } finally { lateBusy = false; }
+      });
     }
 
     async function refresh(force) {
@@ -679,6 +716,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         return;
       }
       render();
+      checkLate();
     }
 
     // ---------- 放進網站導覽列 ----------
@@ -965,7 +1003,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     function startup() {
       let c = null;
       try { c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) { /* ignore */ }
-      if (c && c.items) { data = c; render(); } else skeleton();
+      if (c && c.items) { data = c; render(); checkLate(); } else skeleton();
       if (!c || Date.now() - c.time >= CACHE_MS) whenIdle(() => refresh(true));
     }
 
