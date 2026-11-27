@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.4.0
+// @version      1.5.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -178,17 +178,17 @@
   root.innerHTML = `
 <style>
 :host{all:initial;--top:0px;--ease:cubic-bezier(.22,1,.36,1);
-  --blue:#1f5fbf;--ink:#1d2433;--sub:#5b6474;--line:#e8ebf0;--bg:#f5f7fa;
-  --todo:#d97706;--todo-bg:#fff4e0;--missed:#d93025;--missed-bg:#fdecea;--done:#188038;--done-bg:#e6f4ea}
+  --blue:#4c5fd5;--blue-bg:#eef0fc;--ink:#22252b;--sub:#6b7079;--line:#e6e4df;--bg:#f6f5f2;--hd:#2a2d34;
+  --todo:#c27a12;--todo-bg:#fbf3e3;--missed:#c8423a;--missed-bg:#fbecea;--done:#2f8a5b;--done-bg:#e7f4ec}
 *{box-sizing:border-box;font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif}
 button{font:inherit;color:inherit}
 
 /* 浮動按鈕（只在沒有網站導覽列時出現） */
 .fab{position:fixed;right:16px;bottom:16px;z-index:2147483645;border:0;border-radius:28px;
   background:var(--blue);color:#fff;padding:12px 16px;font-size:15px;font-weight:600;
-  box-shadow:0 6px 18px rgba(31,95,191,.35);cursor:pointer;display:flex;gap:8px;align-items:center;
+  box-shadow:0 6px 18px rgba(76,95,213,.3);cursor:pointer;display:flex;gap:8px;align-items:center;
   transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
-.fab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(31,95,191,.4)}
+.fab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(76,95,213,.38)}
 .fab .b{background:#fff;color:var(--missed);border-radius:10px;padding:0 7px;font-size:13px;min-width:20px;text-align:center}
 .fab .b.ok{color:var(--done)}
 @media (min-width:992px){.fab.nd{display:none}}
@@ -206,56 +206,56 @@ button{font:inherit;color:inherit}
   transition:transform .42s var(--ease),visibility 0s linear .42s}
 :host(.open) .drawer{transform:none;visibility:visible;transition:transform .42s var(--ease),visibility 0s}
 
-.hd{background:linear-gradient(135deg,#1f5fbf,#3b82d6);color:#fff;padding:18px 20px 16px;flex:none}
+.hd{background:var(--hd);color:#fff;padding:18px 20px 16px;flex:none}
 .hd-row{display:flex;align-items:center;gap:8px}
 .hd h2{margin:0;font-size:20px;font-weight:700;flex:1;letter-spacing:.3px}
-.icon-btn{border:0;background:rgba(255,255,255,.16);color:#fff;width:36px;height:36px;border-radius:10px;
+.icon-btn{border:0;background:rgba(255,255,255,.1);color:#fff;width:36px;height:36px;border-radius:10px;
   display:grid;place-items:center;cursor:pointer;transition:background .2s,transform .2s var(--ease)}
-.icon-btn:hover{background:rgba(255,255,255,.28)}
+.icon-btn:hover{background:rgba(255,255,255,.2)}
 .icon-btn:active{transform:scale(.92)}
 .icon-btn.spin svg{animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.meta{font-size:12.5px;opacity:.85;margin-top:4px;min-height:16px}
+.meta{font-size:12.5px;opacity:.65;margin-top:4px;min-height:16px}
 
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px 4px;margin-top:-2px;flex:none}
-.stat{border:1.5px solid transparent;background:#fff;border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer;
-  box-shadow:0 1px 3px rgba(15,23,42,.08);transition:transform .2s var(--ease),box-shadow .2s var(--ease),border-color .2s,background .2s}
-.stat:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.1)}
+.stat{border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer;
+  box-shadow:none;transition:transform .2s var(--ease),box-shadow .2s var(--ease),border-color .2s,background .2s}
+.stat:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(34,37,43,.08)}
 .stat .n{font-size:24px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat .l{font-size:12.5px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat.todo .n{color:var(--todo)}.stat.missed .n{color:var(--missed)}.stat.done .n{color:var(--done)}.stat.all .n{color:var(--blue)}
 .stat.on.todo{border-color:var(--todo);background:var(--todo-bg)}
 .stat.on.missed{border-color:var(--missed);background:var(--missed-bg)}
 .stat.on.done{border-color:var(--done);background:var(--done-bg)}
-.stat.on.all{border-color:var(--blue);background:#e8f0fc}
+.stat.on.all{border-color:var(--blue);background:var(--blue-bg)}
 
 .search{margin:10px 20px 6px;position:relative;flex:none}
 .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8a93a3}
 .search input{width:100%;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px 10px 36px;
   font-size:14px;color:var(--ink);outline:none;transition:border-color .2s,box-shadow .2s}
-.search input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,95,191,.15)}
+.search input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(76,95,213,.15)}
 
 .list{flex:1;overflow:auto;padding:6px 20px 24px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .item{position:relative;display:block;text-decoration:none;color:inherit;background:#fff;border-radius:14px;
-  padding:12px 14px 12px 18px;margin-top:10px;box-shadow:0 1px 3px rgba(15,23,42,.07);overflow:hidden;
+  padding:12px 14px 12px 18px;margin-top:10px;border:1px solid var(--line);box-shadow:none;overflow:hidden;
   transition:transform .2s var(--ease),box-shadow .2s var(--ease);animation:rise .42s var(--ease) both}
-.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
 .item.todo{--c:var(--todo)}.item.missed{--c:var(--missed)}.item.done{--c:var(--done)}
-.item:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,23,42,.1)}
+.item:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(34,37,43,.08);border-color:transparent}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .top-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tag{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
 .todo .tag{color:var(--todo);background:var(--todo-bg)}.missed .tag{color:var(--missed);background:var(--missed-bg)}.done .tag{color:var(--done);background:var(--done-bg)}
-.left{margin-left:auto;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;color:#1f5fbf;background:#e8f0fc}
+.left{margin-left:auto;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;color:var(--blue);background:var(--blue-bg)}
 .left.soon{color:var(--todo);background:var(--todo-bg)}
 .left.urgent{color:var(--missed);background:var(--missed-bg)}
 .score{margin-left:auto;font-size:12.5px;color:var(--sub)}
 .title{font-size:15px;font-weight:600;line-height:1.45;margin-top:7px;color:var(--ink)}
-.item.done .title{color:#6b7280;font-weight:500}
+.item.done .title{color:var(--sub);font-weight:500}
 .sub{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--sub)}
 .sub span{display:inline-flex;align-items:center;gap:5px;min-width:0}
 .msg{padding:48px 14px;text-align:center;color:var(--sub);font-size:14px;animation:rise .4s var(--ease) both}
-.skel{height:86px;border-radius:14px;margin-top:10px;background:linear-gradient(90deg,#eceff3 25%,#f6f7f9 50%,#eceff3 75%);
+.skel{height:86px;border-radius:14px;margin-top:10px;background:linear-gradient(90deg,#ebe9e4 25%,#f4f3ef 50%,#ebe9e4 75%);
   background-size:200% 100%;animation:shimmer 1.2s linear infinite}
 @keyframes shimmer{to{background-position:-200% 0}}
 
@@ -308,7 +308,7 @@ button{font:inherit;color:inherit}
     badge.classList.toggle('ok', n.todo === 0);
     document.querySelectorAll('.fca-nav-badge').forEach(b => {
       b.textContent = n.todo;
-      b.style.color = n.todo === 0 ? '#188038' : '#d93025';
+      b.style.color = n.todo === 0 ? '#2f8a5b' : '#c8423a';
     });
 
     $('.meta').textContent = T.updated(fmt(data.time), items.length);
@@ -363,7 +363,7 @@ button{font:inherit;color:inherit}
   // ---------- 放進網站導覽列 ----------
   // 電腦版：上方導覽列「我的課程」左邊；手機版：上方 ☰ 列、👤 圖示左邊。
   // 找不到導覽列的頁面才用右下角浮動按鈕。
-  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#d93025;border-radius:10px;' +
+  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#c8423a;border-radius:10px;' +
     'padding:0 7px;margin-left:6px;font-size:12px;line-height:18px;font-weight:600;min-width:20px;text-align:center';
   function mountNav() {
     const open = e => { e.preventDefault(); setOpen(true); };
