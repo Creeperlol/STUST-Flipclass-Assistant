@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.9.1
+// @version      1.10.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -213,7 +213,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.9.1';
+    let VERSION = '1.10.0';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
@@ -314,7 +314,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
     const I18N = {
       en: {
-        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', avatar: 'Change photo', avatarReset: 'Reset photo',
+        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', avatar: 'Change photo', avatarReset: 'Reset photo', crop: 'Adjust photo', cropHint: 'Drag to move · scroll or slide to zoom', save: 'Save', cancel: 'Cancel', zoom: 'Zoom',
         todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All',
         updated: (t, n) => `Updated ${t} · ${n} total`,
         left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
@@ -322,7 +322,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: 'No matching assignments', error: 'Failed to load. Tap refresh to try again.',
       },
       'zh-TW': {
-        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', avatar: '更換頭像', avatarReset: '還原頭像',
+        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', avatar: '更換頭像', avatarReset: '還原頭像', crop: '調整頭像', cropHint: '拖曳移動位置・滾輪或拉桿縮放', save: '儲存', cancel: '取消', zoom: '縮放',
         todo: '進行中', missed: '已過期', done: '已繳交', all: '全部',
         updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
@@ -330,7 +330,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: '找不到符合的作業', error: '讀取失敗，請按重新整理再試一次',
       },
       'zh-CN': {
-        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', avatar: '更换头像', avatarReset: '还原头像',
+        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', avatar: '更换头像', avatarReset: '还原头像', crop: '调整头像', cropHint: '拖动移动位置・滚轮或拉杆缩放', save: '保存', cancel: '取消', zoom: '缩放',
         todo: '进行中', missed: '已过期', done: '已缴交', all: '全部',
         updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
@@ -481,6 +481,26 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     .hd h2{font-size:22px}.stat{padding:10px 9px}.stat .n{font-size:24px}.stat .l{font-size:11px}
     .fab{right:12px;bottom:12px}
   }
+  /* 頭像裁切 */
+  .crop{position:fixed;inset:0;z-index:2147483647;background:rgba(8,9,11,.6);display:none;place-items:center;padding:16px}
+  .crop.on{display:grid;animation:rise .2s ease both}
+  .crop-card{background:var(--bg);color:var(--ink);width:min(340px,100%);padding:18px 20px 16px;position:relative}
+  .crop-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc)}
+  .crop-card h3{margin:2px 0 4px;font-size:18px;font-weight:800;letter-spacing:.5px}
+  .crop-hint{font-size:12px;color:var(--sub);margin-bottom:12px}
+  .stage{position:relative;width:100%;aspect-ratio:1;overflow:hidden;background:#0b0c0e;cursor:grab;touch-action:none;user-select:none}
+  .stage.drag{cursor:grabbing}
+  .stage img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;pointer-events:none;-webkit-user-drag:none}
+  .ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(8,9,11,.6);outline:1px solid rgba(255,255,255,.6);pointer-events:none}
+  .zoom-row{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px;color:var(--sub)}
+  .zoom-row input{flex:1;accent-color:var(--acc)}
+  .crop-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .btn{border:1px solid var(--line2);background:transparent;color:var(--ink);padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;border-radius:0;
+    transition:background .15s,border-color .15s,color .15s}
+  .btn:hover{border-color:var(--ink)}
+  .btn.primary{background:var(--acc);border-color:var(--acc);color:#111}
+  .btn.primary:hover{background:#ffdd66}
+
   @media (prefers-reduced-motion:reduce){
     *,.drawer,:host(.open) .drawer{animation:none!important;transition:none!important}
   }
@@ -498,7 +518,16 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     <div class="stats"></div>
     <label class="search">${ICON.search}<input type="search" placeholder="${T.search}" aria-label="${T.search}"></label>
     <div class="list"></div>
-  </aside>`;
+  </aside>
+  <div class="crop" role="dialog" aria-modal="true" aria-label="${T.crop}">
+    <div class="crop-card">
+      <h3>${T.crop}</h3>
+      <div class="crop-hint">${T.cropHint}</div>
+      <div class="stage"><img alt=""><div class="ring"></div></div>
+      <label class="zoom-row">${T.zoom}<input type="range" min="1" max="4" step="0.01" value="1"></label>
+      <div class="crop-btns"><button class="btn crop-cancel">${T.cancel}</button><button class="btn primary crop-save">${T.save}</button></div>
+    </div>
+  </div>`;
 
     const $ = s => root.querySelector(s);
     let data = null, filter = 'todo', query = '';
@@ -723,6 +752,85 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       });
       document.querySelectorAll('.fca-av-reset').forEach(b => { b.style.display = url ? '' : 'none'; });
     }
+    // 選圖片 → 跳出裁切視窗：拖曳移動、滾輪／拉桿縮放，圓框內就是頭像
+    const crop = { img: null, base: 1, zoom: 1, x: 0, y: 0, size: 0 };
+    function cropClamp() {
+      const sc = crop.base * crop.zoom, w = crop.img.naturalWidth * sc, h = crop.img.naturalHeight * sc;
+      crop.x = Math.min(0, Math.max(crop.size - w, crop.x));
+      crop.y = Math.min(0, Math.max(crop.size - h, crop.y));
+    }
+    function cropDraw() {
+      cropClamp();
+      $('.stage img').style.transform = `translate(${crop.x}px,${crop.y}px) scale(${crop.base * crop.zoom})`;
+    }
+    function cropZoomTo(z, cx, cy) { // 以 (cx, cy) 為中心縮放
+      z = Math.min(4, Math.max(1, z));
+      const k = z / crop.zoom;
+      crop.x = cx - (cx - crop.x) * k;
+      crop.y = cy - (cy - crop.y) * k;
+      crop.zoom = z;
+      $('.zoom-row input').value = z;
+      cropDraw();
+    }
+    function openCrop(src) {
+      const im = $('.stage img');
+      im.onload = () => {
+        crop.img = im;
+        $('.crop').classList.add('on');
+        crop.size = $('.stage').clientWidth;
+        crop.base = crop.size / Math.min(im.naturalWidth, im.naturalHeight); // 剛好蓋滿圓框
+        crop.zoom = 1;
+        crop.x = (crop.size - im.naturalWidth * crop.base) / 2;
+        crop.y = (crop.size - im.naturalHeight * crop.base) / 2;
+        $('.zoom-row input').value = 1;
+        cropDraw();
+        $('.crop-save').focus({ preventScroll: true });
+      };
+      im.src = src;
+    }
+    function closeCrop() { $('.crop').classList.remove('on'); $('.stage img').removeAttribute('src'); }
+    function saveCrop() {
+      // 縮到 256px、存成 JPEG，才不會塞爆 localStorage
+      const out = 256, sc = crop.base * crop.zoom, c = document.createElement('canvas');
+      c.width = c.height = out;
+      const g = c.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(crop.img, -crop.x / sc, -crop.y / sc, crop.size / sc, crop.size / sc, 0, 0, out, out);
+      try { localStorage.setItem(AVATAR_KEY, c.toDataURL('image/jpeg', 0.9)); } catch (e) { alert(e); }
+      closeCrop();
+      applyAvatar();
+    }
+    (function wireCrop() {
+      const stage = $('.stage');
+      let drag = null;
+      stage.addEventListener('pointerdown', e => {
+        drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: crop.x, y: crop.y };
+        stage.setPointerCapture(e.pointerId);
+        stage.classList.add('drag');
+      });
+      stage.addEventListener('pointermove', e => {
+        if (!drag || e.pointerId !== drag.id) return;
+        crop.x = drag.x + e.clientX - drag.sx;
+        crop.y = drag.y + e.clientY - drag.sy;
+        cropDraw();
+      });
+      const end = () => { drag = null; stage.classList.remove('drag'); };
+      stage.addEventListener('pointerup', end);
+      stage.addEventListener('pointercancel', end);
+      stage.addEventListener('wheel', e => {
+        e.preventDefault();
+        const r = stage.getBoundingClientRect();
+        cropZoomTo(crop.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top);
+      }, { passive: false });
+      $('.zoom-row input').addEventListener('input', e => cropZoomTo(+e.target.value, crop.size / 2, crop.size / 2));
+      $('.crop-cancel').addEventListener('click', closeCrop);
+      $('.crop-save').addEventListener('click', saveCrop);
+      $('.crop').addEventListener('click', e => { if (e.target === $('.crop')) closeCrop(); });
+      $('.crop').addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.stopPropagation(); closeCrop(); }
+        if (e.key === 'Enter') saveCrop();
+      });
+    })();
     function pickAvatar() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -730,18 +838,9 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       input.onchange = () => {
         const f = input.files && input.files[0];
         if (!f) return;
-        const img = new Image();
-        img.onload = () => {
-          // 裁成正方形、縮到 256px，存成 JPEG 才不會塞爆 localStorage
-          const n = Math.min(img.naturalWidth, img.naturalHeight), size = 256;
-          const c = document.createElement('canvas');
-          c.width = c.height = size;
-          c.getContext('2d').drawImage(img, (img.naturalWidth - n) / 2, (img.naturalHeight - n) / 2, n, n, 0, 0, size, size);
-          try { localStorage.setItem(AVATAR_KEY, c.toDataURL('image/jpeg', 0.9)); } catch (e) { alert(e); }
-          URL.revokeObjectURL(img.src);
-          applyAvatar();
-        };
-        img.src = URL.createObjectURL(f);
+        const fr = new FileReader();
+        fr.onload = () => openCrop(fr.result);
+        fr.readAsDataURL(f);
       };
       input.click();
     }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "STUST Flipclass Assistant",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "FlipClass 作業總覽：列出所有課程的作業，標示已繳交 / 未繳（進行中）/ 未繳（已過期）",
   "homepage_url": "https://github.com/Creeperlol/STUST-Flipclass-Assistant",
   "content_scripts": [
