@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.1.0
+// @version      1.2.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -169,7 +169,9 @@
 .panel{position:fixed;z-index:2147483647;right:16px;bottom:76px;width:min(560px,calc(100vw - 32px));
   max-height:min(75vh,720px);background:#fff;color:#222;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.3);
   display:none;flex-direction:column;overflow:hidden}
-.open .panel{display:flex} .open .mask{display:block}
+/* 網站導覽列：電腦版 ≥992px 顯示，手機版 <992px 顯示；有對應按鈕時才藏起浮動按鈕 */
+@media (min-width:992px){.fab.nd{display:none}.panel.top{top:64px;bottom:auto}}
+@media (max-width:991px){.fab.nm{display:none}}
 .hd{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #eee}
 .hd h2{font-size:16px;margin:0;flex:1}
 .hd button{border:0;background:#f0f2f5;border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:#222}
@@ -189,9 +191,8 @@
 .course{font-size:12px;color:#888;margin-top:2px}
 .msg{padding:24px 14px;text-align:center;color:#666;font-size:14px}
 @media (max-width:600px){
-  .panel{right:0;left:0;bottom:0;width:100%;max-height:85vh;border-radius:14px 14px 0 0}
+  .panel,.panel.top{right:0;left:0;top:auto;bottom:0;width:100%;max-height:85vh;border-radius:14px 14px 0 0}
   .fab{right:12px;bottom:12px}
-  .open .fab{display:none}
 }
 </style>
 <div class="mask"></div>
@@ -226,6 +227,10 @@
     const badge = $('.fab .b');
     badge.textContent = n.todo;
     badge.classList.toggle('ok', n.todo === 0);
+    document.querySelectorAll('.fca-nav-badge').forEach(b => {
+      b.textContent = n.todo;
+      b.style.color = n.todo === 0 ? '#1b7a2f' : '#b3261e';
+    });
 
     $(".meta").textContent = T.updated(fmt(data.time), items.length);
     $('.filters').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
@@ -254,8 +259,47 @@
       $('.list').innerHTML = `<div class="msg">${T.error}</div>`;
       return;
     }
-    if (!data) { host.remove(); return; } // 沒登入就不顯示
+    if (!data) { // 沒登入就不顯示
+      host.remove();
+      document.querySelectorAll('.fca-nav').forEach(e => e.remove());
+      return;
+    }
     render();
+  }
+
+  // ---------- 放進網站導覽列 ----------
+  // 電腦版：上方導覽列「我的課程」左邊；手機版：上方 ☰ 列、👤 圖示左邊。
+  // 找不到導覽列的頁面才用右下角浮動按鈕。
+  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#b3261e;border-radius:10px;' +
+    'padding:0 7px;margin-left:6px;font-size:12px;line-height:18px;font-weight:600;min-width:20px;text-align:center';
+  function mountNav() {
+    const open = e => { e.preventDefault(); setOpen(true); };
+
+    const myCourses = document.querySelector('nav.fs-sysbar ul.navbar-right a[href="/dashboard"]');
+    const li0 = myCourses && myCourses.closest('li');
+    if (li0) {
+      const li = document.createElement('li');
+      li.className = 'fca-nav';
+      li.innerHTML = `<a href="#" title="${T.title}"><span class="text">${T.fab}</span><span class="fca-nav-badge" style="${BADGE_STYLE}">…</span></a>`;
+      li.firstChild.addEventListener('click', open);
+      li0.before(li);
+      $('.fab').classList.add('nd');
+      $('.panel').classList.add('top');
+    }
+
+    const btns = document.querySelector('.navbar-header .fs-navbar-btns');
+    if (btns) {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = 'navbar-brand fca-nav';
+      a.title = T.title;
+      a.setAttribute('aria-label', T.title);
+      a.innerHTML = `<span class="font-icon far fa-clipboard" aria-hidden="true"></span><span class="fca-nav-badge" style="${BADGE_STYLE}">…</span>`;
+      a.addEventListener('click', open);
+      btns.prepend(a);
+      $('.fab').classList.add('nm');
+    }
+
   }
 
   function setOpen(open) {
@@ -275,6 +319,6 @@
   });
 
   // 登入頁不載入
-  if (!location.pathname.startsWith('/index/login')) refresh(false);
+  if (!location.pathname.startsWith('/index/login')) { mountNav(); refresh(false); }
   else host.remove();
 })();

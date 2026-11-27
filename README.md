@@ -14,13 +14,13 @@ FlipClass 首頁的 Recent Event 只列出還沒過期的作業，也看不出�
 |---|---|---|
 | 適用 | 電腦、Android 手機 | 電腦 |
 | 登入 | 用瀏覽器裡已登入的狀態，**不需要帳號密碼** | 自動登入，帳號密碼放在 `.env` |
-| 顯示 | FlipClass 網頁右下角的「作業」按鈕 | 終端機＋ `homework_report.html` |
+| 顯示 | FlipClass 上方導覽列的「作業」按鈕 | 終端機＋ `homework_report.html` |
 
 ---
 
 ## 瀏覽器插件
 
-安裝後，登入 FlipClass，右下角會出現藍色的 **「作業」** 按鈕，數字是還沒繳交、也還沒過期的作業數量。點開就能依狀態篩選，點作業會直接進入作業頁。資料會快取 10 分鐘，按「重新整理」可立即更新。介面語言會跟著 FlipClass 右上角選的語言（English／繁體／简体）。
+安裝後，登入 FlipClass，上方導覽列會多一個 **「作業」** 按鈕（電腦版在「我的課程」左邊，手機版是 👤 左邊的 📋 圖示；沒有導覽列的頁面則顯示在右下角），數字是還沒繳交、也還沒過期的作業數量。點開就能依狀態篩選，點作業會直接進入作業頁。資料會快取 10 分鐘，按「重新整理」可立即更新。介面語言會跟著 FlipClass 右上角選的語言（English／繁體／简体）。
 
 ### Android 手機
 
@@ -28,7 +28,7 @@ FlipClass 首頁的 Recent Event 只列出還沒過期的作業，也看不出�
 2. 在 Firefox 選單 →「擴充套件」中安裝 **Tampermonkey**（Edge：選單 →「擴充功能」）。
 3. 用同一個瀏覽器打開這個網址，Tampermonkey 會跳出安裝畫面，按「安裝」：
    <https://raw.githubusercontent.com/Creeperlol/STUST-Flipclass-Assistant/main/extension/flipclass-assistant.user.js>
-4. 打開 FlipClass 並登入，右下角就會出現「作業」按鈕。
+4. 打開 FlipClass 並登入，上方導覽列就會出現「作業」按鈕。
 
 腳本更新後 Tampermonkey 會自動更新。
 
