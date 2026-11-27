@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.8.2
+// @version      1.9.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -19,23 +19,162 @@
   if (window.__fcaLoaded) return;
   window.__fcaLoaded = true;
 
-  // ---------- 夜間模式（document-start 就套用，避免白色閃一下） ----------
-  // 整頁反轉顏色，圖片、影片、橫幅和網站深色導覽列（電腦版、手機版）再反轉回來保持原色。
+  // ---------- 夜間模式 ----------
+  // 不用整頁反轉：讀取網站自己的 CSS，把淺色背景換成深灰、深色文字換成淺色，
+  // 圖片保持原樣。document-start 先鋪深色底，DOM 好了再產生完整的配色。
   const DARK_KEY = 'fca-dark';
-  const FLIP = 'invert(1) hue-rotate(180deg)';
-  const darkStyle = document.createElement('style');
-  darkStyle.id = 'fca-dark-style';
-  darkStyle.textContent = `
-html[data-fca-dark]{filter:invert(.9) hue-rotate(180deg) contrast(1.15);background:#fff}
-html[data-fca-dark] :is(img,video,picture,canvas,iframe,embed,object,.fs-banner,.img-container,[style*="background-image"],:is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar)){filter:${FLIP}}
-html[data-fca-dark] :is(.fs-banner,.img-container,[style*="background-image"],:is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar)) :is(img,video,picture,canvas){filter:none}
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar){position:relative;z-index:1030;
-  background:#1c1d21!important;border-color:#1c1d21!important;box-shadow:inset 0 -2px 0 #ffd23c}
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) .navbar-nav>li>a:is(:hover,:focus),
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) .navbar-nav>.open>a{background:#2a2c31!important;outline:none}
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdown-menu,.navbar-collapse.in,.navbar-collapse.collapsing){filter:${FLIP}}
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdown-menu,.navbar-collapse.in,.navbar-collapse.collapsing) :is(img,video){filter:none}`;
-  (document.head || document.documentElement).appendChild(darkStyle);
+  const NAV = ':is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar)';
+  const D = 'html[data-fca-dark]';
+  const darkBase = document.createElement('style');
+  darkBase.id = 'fca-dark-base';
+  darkBase.textContent = `
+${D}{color-scheme:dark;background:#1e2126!important}
+${D} body{background:#1e2126!important;color:#d6dae0}
+${D}:not([data-fca-ready]) body{visibility:hidden}
+${D} :is(input,textarea,select){background-color:#262a30;color:#d6dae0;border-color:#41464e}
+${D} :is(img:not(.fs-logo),.img-container,.fs-banner){filter:brightness(.88)}
+${D} .fs-banner{border-color:#1e2126!important}
+${D} ${NAV}{background:#16181c!important;border-color:#16181c!important;box-shadow:none!important;background-image:none!important}
+${D} ${NAV} :is(.navbar-brand,.navbar-nav>li>a,.navbar-toggle){color:#e4e7eb!important;background:transparent!important}
+${D} ${NAV} :is(.navbar-brand,.navbar-nav>li>a,.navbar-toggle):is(:hover,:focus),
+${D} ${NAV} .navbar-nav>.open>a{background:#2a2e35!important;color:#fff!important;outline:none}
+${D} ${NAV} .dropdown-menu{background:#24282e!important;border-color:#363b43!important}
+${D} ${NAV} .dropdown-menu>li>a{color:#d6dae0!important}
+${D} ${NAV} .dropdown-menu>li>a:is(:hover,:focus){background:#30353c!important;color:#fff!important}
+${D} ${NAV} :is(.navbar-collapse,.navbar-form){border-color:#2a2e35!important}
+.fca-theme:focus{outline:none}
+@media (max-width:1199px){.fca-about{display:none!important}}`;
+  (document.head || document.documentElement).appendChild(darkBase);
+
+  // 顏色換算（HSL）
+  let colorCtx = null;
+  function parseColor(v) {
+    v = (v || '').trim();
+    if (!v || /^(inherit|initial|unset|revert|currentcolor|transparent|none)$/i.test(v) || v.includes('var(')) return null;
+    colorCtx = colorCtx || document.createElement('canvas').getContext('2d');
+    colorCtx.fillStyle = '#010203';
+    colorCtx.fillStyle = v;
+    const o = colorCtx.fillStyle;
+    if (o === '#010203' && !/^#010203$/i.test(v)) return null;
+    if (o[0] === '#') return [parseInt(o.slice(1, 3), 16), parseInt(o.slice(3, 5), 16), parseInt(o.slice(5, 7), 16), 1];
+    const m = o.match(/[\d.]+/g).map(Number);
+    return [m[0], m[1], m[2], m.length > 3 ? m[3] : 1];
+  }
+  function toHsl([r, g, b]) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, s, l];
+  }
+  const hsla = (h, s, l, a) => `hsla(${h.toFixed(0)},${(s * 100).toFixed(1)}%,${(l * 100).toFixed(1)}%,${a})`;
+  function mapBg(c) { // 淺色背景 → 深灰；本來就深的（按鈕、導覽列）不動
+    const [h, s, l] = toHsl(c);
+    return l < 0.55 ? null : hsla(h, s * 0.35, 0.145 + (1 - l) * 0.45, c[3]);
+  }
+  function mapFg(c) { // 深色文字 → 淺色；本來就淺的（按鈕上的白字）不動
+    const [h, s, l] = toHsl(c);
+    return l > 0.62 ? null : hsla(h, Math.min(s, 0.55), Math.min(0.9, 0.86 - l * 0.4 + (s > 0.3 ? 0.04 : 0)), c[3]);
+  }
+  function mapBorder(c) {
+    const [h, s, l] = toHsl(c);
+    return l < 0.5 ? null : hsla(h, s * 0.3, 0.2 + (1 - l) * 0.4, c[3]);
+  }
+  const MAPS = [
+    ['background-color', mapBg], ['color', mapFg],
+    ['border-top-color', mapBorder], ['border-right-color', mapBorder],
+    ['border-bottom-color', mapBorder], ['border-left-color', mapBorder],
+  ];
+  function darkDecl(style, forceImportant) {
+    let out = '';
+    for (const [prop, fn] of MAPS) {
+      const c = parseColor(style.getPropertyValue(prop));
+      const v = c && fn(c);
+      if (v) out += `${prop}:${v}${forceImportant || style.getPropertyPriority(prop) ? '!important' : ''};`;
+    }
+    // 淺色漸層背景直接換成單色
+    const bi = style.getPropertyValue('background-image');
+    if (bi && bi.includes('gradient')) {
+      const cols = (bi.match(/(rgba?\([^)]*\)|#[0-9a-f]{3,8}|\b[a-z]+\b(?=\s*[,)\s]))/gi) || []).map(parseColor).filter(Boolean);
+      if (cols.length && cols.every(c => toHsl(c)[2] >= 0.55)) {
+        out += `background-image:none!important;background-color:${mapBg(cols[0])}!important;`;
+      }
+    }
+    return out;
+  }
+  function splitSelectors(sel) {
+    const out = []; let depth = 0, cur = '';
+    for (const ch of sel) {
+      if (ch === '(') depth++; else if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+    }
+    out.push(cur);
+    return out.map(s => s.trim()).filter(Boolean).map(s =>
+      /^(html|:root)\b/.test(s) ? s.replace(/^(html|:root)/, D) : `${D} ${s}`).join(',');
+  }
+  function walkRules(rules) {
+    let css = '';
+    for (const r of rules) {
+      if (r.selectorText && r.style) {
+        const d = darkDecl(r.style, false);
+        if (d) css += `${splitSelectors(r.selectorText)}{${d}}\n`;
+      } else if (r.media && r.cssRules) {
+        const inner = walkRules(r.cssRules);
+        if (inner) css += `@media ${r.media.mediaText}{${inner}}\n`;
+      } else if (r.cssRules) {
+        css += walkRules(r.cssRules);
+      }
+    }
+    return css;
+  }
+  const darkDyn = document.createElement('style');
+  darkDyn.id = 'fca-dark-dyn';
+  const darkInline = document.createElement('style');
+  darkInline.id = 'fca-dark-inline';
+  let inlineSeq = 0;
+  function darkInlineFor(root) {
+    let css = '';
+    const els = root.nodeType === 1 && root.hasAttribute('style') ? [root] : [];
+    if (root.querySelectorAll) els.push(...root.querySelectorAll('[style]'));
+    for (const el of els) {
+      if (el.closest('#fca-host')) continue;
+      const d = darkDecl(el.style, true);
+      if (!d) continue;
+      if (!el.dataset.fcaI) el.dataset.fcaI = ++inlineSeq;
+      css += `${D} [data-fca-i="${el.dataset.fcaI}"]{${d}}\n`;
+    }
+    if (css) darkInline.textContent += css;
+  }
+  const builtSheets = new Set();
+  function buildDark() {
+    let css = '', changed = false;
+    for (const sh of document.styleSheets) {
+      if (sh.ownerNode === darkBase || sh.ownerNode === darkDyn || sh.ownerNode === darkInline) continue;
+      let rules;
+      try { rules = sh.cssRules; } catch (e) { continue; } // 跨網域的 CSS 讀不到就跳過
+      if (!builtSheets.has(sh)) { builtSheets.add(sh); changed = true; }
+      css += walkRules(rules);
+    }
+    if (changed || !darkDyn.isConnected) {
+      darkDyn.textContent = css;
+      document.head.append(darkDyn, darkInline);
+    }
+  }
+  let darkReady = false, darkObserver = null;
+  function ensureDark() {
+    if (darkReady || !document.body) return;
+    darkReady = true;
+    buildDark();
+    darkInlineFor(document.body);
+    // 之後才載入的 CSS、動態加進來的內容也要換色
+    window.addEventListener('load', buildDark);
+    darkObserver = new MutationObserver(muts => {
+      for (const m of muts) m.addedNodes.forEach(n => { if (n.nodeType === 1) darkInlineFor(n); });
+    });
+    darkObserver.observe(document.body, { childList: true, subtree: true });
+    document.documentElement.setAttribute('data-fca-ready', '');
+  }
   function darkPref() {
     try { const v = localStorage.getItem(DARK_KEY); if (v !== null) return v === '1'; } catch (e) { /* ignore */ }
     return matchMedia('(prefers-color-scheme: dark)').matches;
@@ -43,12 +182,21 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
   const darkHooks = [];
   function setDark(on, save) {
     document.documentElement.toggleAttribute('data-fca-dark', on);
+    if (on) ensureDark();
     if (save) { try { localStorage.setItem(DARK_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ } }
     darkHooks.forEach(f => f(on));
   }
   setDark(darkPref(), false);
+  // 萬一出錯也不要讓頁面一直隱藏
+  setTimeout(() => document.documentElement.setAttribute('data-fca-ready', ''), 2500);
 
   function main() {
+    if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
+    const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
+    let VERSION = '1.9.0';
+    try { VERSION = GM_info.script.version; } catch (e) {
+      try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
+    }
 
     const CACHE_KEY = 'fca-cache-v1';
     const CACHE_MS = 10 * 60 * 1000; // 10 分鐘內換頁不重抓
@@ -146,7 +294,7 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
     // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
     const I18N = {
       en: {
-        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode',
+        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', avatar: 'Change photo', avatarReset: 'Reset photo',
         todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All',
         updated: (t, n) => `Updated ${t} · ${n} total`,
         left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
@@ -154,7 +302,7 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
         noMatch: 'No matching assignments', error: 'Failed to load. Tap refresh to try again.',
       },
       'zh-TW': {
-        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式',
+        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', avatar: '更換頭像', avatarReset: '還原頭像',
         todo: '進行中', missed: '已過期', done: '已繳交', all: '全部',
         updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
@@ -162,7 +310,7 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
         noMatch: '找不到符合的作業', error: '讀取失敗，請按重新整理再試一次',
       },
       'zh-CN': {
-        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式',
+        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', avatar: '更换头像', avatarReset: '还原头像',
         todo: '进行中', missed: '已过期', done: '已缴交', all: '全部',
         updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
@@ -225,7 +373,6 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
   .fab:hover{background:#26282d}
   .fab .b{color:var(--acc)}
   .fab .b.ok{color:var(--done)}
-  :host(.dark) :is(.drawer,.mask,.fab){filter:invert(1) hue-rotate(180deg)}
 @media (min-width:992px){.fab.nd{display:none}}
   @media (max-width:991px){.fab.nm{display:none}}
 
@@ -423,6 +570,14 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
         li.innerHTML = `<a href="#" title="${T.title}"><span class="text">${T.fab}</span><span class="fca-nav-badge" style="${BADGE_STYLE}"></span></a>`;
         li.firstChild.addEventListener('click', open);
         li0.before(li);
+
+        // 右上角：插件名稱和版本，點了開 GitHub
+        const about = document.createElement('li');
+        about.className = 'fca-nav fca-about';
+        about.innerHTML = `<a href="${REPO}" target="_blank" rel="noopener" title="GitHub"
+          style="padding-top:12px;padding-bottom:11px;font-size:10.5px;line-height:13px;text-align:right;font-weight:400;opacity:.7">
+          STUST Flipclass Assistant<br>v${VERSION}</a>`;
+        li0.parentElement.appendChild(about);
         $('.fab').classList.add('nd');
       }
 
@@ -535,8 +690,83 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
     $('.theme').addEventListener('click', () => toggleDark());
     darkHooks.push(syncDarkUI);
 
+    // ---------- 自訂頭像（只存在這個瀏覽器，別人看不到） ----------
+    const AVATAR_KEY = 'fca-avatar';
+    function applyAvatar() {
+      let url = null;
+      try { url = localStorage.getItem(AVATAR_KEY); } catch (e) { /* ignore */ }
+      document.querySelectorAll('img.fs-user-info-photo').forEach(img => {
+        if (!img.dataset.fcaOrig) img.dataset.fcaOrig = img.src;
+        img.src = url || img.dataset.fcaOrig;
+        img.style.objectFit = 'cover';
+        img.style.aspectRatio = '1';
+      });
+      document.querySelectorAll('.fca-av-reset').forEach(b => { b.style.display = url ? '' : 'none'; });
+    }
+    function pickAvatar() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        const img = new Image();
+        img.onload = () => {
+          // 裁成正方形、縮到 256px，存成 JPEG 才不會塞爆 localStorage
+          const n = Math.min(img.naturalWidth, img.naturalHeight), size = 256;
+          const c = document.createElement('canvas');
+          c.width = c.height = size;
+          c.getContext('2d').drawImage(img, (img.naturalWidth - n) / 2, (img.naturalHeight - n) / 2, n, n, 0, 0, size, size);
+          try { localStorage.setItem(AVATAR_KEY, c.toDataURL('image/jpeg', 0.9)); } catch (e) { alert(e); }
+          URL.revokeObjectURL(img.src);
+          applyAvatar();
+        };
+        img.src = URL.createObjectURL(f);
+      };
+      input.click();
+    }
+    function mountAvatar() {
+      document.querySelectorAll('img.fs-user-info-photo').forEach(img => {
+        const wrap = img.parentElement;
+        if (wrap.querySelector('.fca-av')) return;
+        wrap.style.position = 'relative';
+        wrap.style.display = 'inline-block';
+        const btnCss = 'position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid #fff;' +
+          'background:#2a2d34;color:#fff;cursor:pointer;display:grid;place-items:center;padding:0;font-size:13px;' +
+          'opacity:0;transition:opacity .15s';
+        const cam = document.createElement('button');
+        cam.type = 'button';
+        cam.className = 'fca-av';
+        cam.title = T.avatar;
+        cam.setAttribute('aria-label', T.avatar);
+        cam.style.cssText = btnCss + ';right:2px;bottom:2px';
+        cam.innerHTML = '<span class="fas fa-camera" aria-hidden="true"></span>';
+        cam.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); pickAvatar(); });
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'fca-av fca-av-reset';
+        reset.title = T.avatarReset;
+        reset.setAttribute('aria-label', T.avatarReset);
+        reset.style.cssText = btnCss + ';left:2px;bottom:2px';
+        reset.innerHTML = '<span class="fas fa-undo" aria-hidden="true"></span>';
+        reset.addEventListener('click', e => {
+          e.preventDefault(); e.stopPropagation();
+          try { localStorage.removeItem(AVATAR_KEY); } catch (err) { /* ignore */ }
+          applyAvatar();
+        });
+        wrap.append(cam, reset);
+        const show = v => wrap.querySelectorAll('.fca-av').forEach(b => { b.style.opacity = v; });
+        wrap.addEventListener('mouseenter', () => show('1'));
+        wrap.addEventListener('mouseleave', () => show('0'));
+        wrap.addEventListener('focusin', () => show('1'));
+        // 觸控裝置沒有滑鼠移入，點頭像就顯示按鈕
+        img.addEventListener('click', () => show('1'));
+      });
+      applyAvatar();
+    }
+
     // 登入頁不載入
-    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); skeleton(); refresh(false); }
+    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); mountAvatar(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); skeleton(); refresh(false); }
     else host.remove();
   }
 
