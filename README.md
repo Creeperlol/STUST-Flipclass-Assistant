@@ -32,6 +32,21 @@ FlipClass 首頁的 Recent Event 只列出還沒過期的作業，也看不出�
 
 腳本更新後 Tampermonkey 會自動更新。
 
+### Android 手機用 Chrome（書籤小程式）
+
+手機版 Chrome 不能裝擴充功能，可以改用書籤。每次使用都會載入最新版，不需要更新。
+
+1. 在 Chrome 隨便把一個網頁加入書籤（右上角 ⋮ → ☆）。
+2. 到 ⋮ →「書籤」，找到剛剛那個書籤，按 ⋮ →「編輯」：
+   - 名稱改成 **`fca`**
+   - 網址整段換成下面這串（按程式碼框右上角的複製按鈕）：
+
+```
+javascript:(function(){var h=document.getElementById('fca-host');if(h){h.shadowRoot.querySelector('.fab').click();return}fetch('https://raw.githubusercontent.com/Creeperlol/STUST-Flipclass-Assistant/main/extension/flipclass-assistant.user.js').then(function(r){return r.text()}).then(function(c){(0,eval)(c);var n=0,t=setInterval(function(){var h=document.getElementById('fca-host');if(h){clearInterval(t);h.shadowRoot.querySelector('.fab').click()}else if(++n>50)clearInterval(t)},100)}).catch(function(e){alert('FlipClass Assistant: '+e)})})()
+```
+
+3. 登入 FlipClass 後，點網址列輸入 **`fca`**，在建議清單中點 **有星號 ☆ 的那個書籤**（不要直接按 Enter，那樣會變成搜尋）。作業面板就會打開。
+
 ### 電腦（Chrome / Edge）
 
 **方法 A：Tampermonkey**（和手機一樣，會自動更新）
