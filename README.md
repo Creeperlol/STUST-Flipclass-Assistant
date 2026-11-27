@@ -2,6 +2,7 @@
 
 南臺科技大學 [FlipClass](https://flipclass.stust.edu.tw/) 優化輔助插件
 
+
 ## 安裝方法（電腦 Chrome / Edge）
 
 ### 方法 A：Tampermonkey
@@ -19,6 +20,7 @@ A-3. 打開 [FlipClass](https://flipclass.stust.edu.tw/) 並登入。
 
 腳本更新後，Tampermonkey 會自動更新。
 
+
 ### 方法 B：直接載入擴充功能
 
 B-1. 下載或 clone 這個 repo（ **Code** → **Download ZIP**，下載後解壓縮）。
@@ -35,6 +37,7 @@ B-4. 打開 [FlipClass](https://flipclass.stust.edu.tw/) 並登入。
 ## 說明
 
 - wip
+
 
 ## 授權
 
