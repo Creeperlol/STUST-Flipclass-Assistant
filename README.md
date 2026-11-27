@@ -25,7 +25,7 @@ A-3. 打開 [FlipClass](https://flipclass.stust.edu.tw/) 並登入。
 
 ### 方法 B：直接載入擴充功能
 
-B-1. 到 [Releases](https://github.com/Creeperlol/STUST-Flipclass-Assistant/releases/latest) 下載 `stust-flipclass-assistant-vX.X.X.zip`，下載後解壓縮。
+B-1. 到 [Releases](https://github.com/Creeperlol/STUST-Flipclass-Assistant/releases/latest) 下載最新版本 `(Latest)`，下載後解壓縮。
 
 B-2. 打開 `chrome://extensions`（Edge 是 `edge://extensions`），開啟右上角的「開發人員模式」。
 
