@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.2.0
+// @version      1.3.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -114,21 +114,21 @@
   // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
   const I18N = {
     en: {
-      fab: 'Assignments', title: 'Assignment Overview', refresh: 'Refresh', close: 'Close',
+      fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignment Overview', refresh: 'Refresh', close: 'Close',
       todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All assignments',
       updated: (t, n) => `Updated ${t} · ${n} total`,
       left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
       loading: 'Loading…', empty: 'Nothing here 🎉', error: 'Failed to load. Tap “Refresh” to try again.',
     },
     'zh-TW': {
-      fab: '作業', title: '作業總覽', refresh: '重新整理', close: '關閉',
+      fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉',
       todo: '未繳・進行中', missed: '未繳・已過期', done: '已繳交', all: '所有作業',
       updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
       left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
       loading: '載入中…', empty: '這裡沒有作業 🎉', error: '讀取失敗，請按「重新整理」再試一次',
     },
     'zh-CN': {
-      fab: '作业', title: '作业总览', refresh: '刷新', close: '关闭',
+      fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭',
       todo: '未缴・进行中', missed: '未缴・已过期', done: '已缴交', all: '所有作业',
       updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
       left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
@@ -302,6 +302,23 @@
 
   }
 
+  // Dashboard「Recent Event」區塊：More 移到左邊，右邊放「Show all assignments」
+  function mountRecentEvent() {
+    const more = [...document.querySelectorAll('a[href="/dashboard/latestEvent"]')]
+      .find(a => a.closest('.text-right'));
+    const row = more && more.closest('.text-right');
+    if (!row || row.querySelector('.fca-showall')) return;
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'center';
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = 'fca-nav fca-showall';
+    a.textContent = T.showAll;
+    a.addEventListener('click', e => { e.preventDefault(); setOpen(true); });
+    row.appendChild(a);
+  }
+
   function setOpen(open) {
     root.host.classList.toggle('open', open);
     $('.panel').style.display = open ? 'flex' : '';
@@ -319,6 +336,6 @@
   });
 
   // 登入頁不載入
-  if (!location.pathname.startsWith('/index/login')) { mountNav(); refresh(false); }
+  if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); refresh(false); }
   else host.remove();
 })();
