@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.3.0
+// @version      1.4.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -111,29 +111,39 @@
     return 'todo';
   }
 
+
   // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
   const I18N = {
     en: {
-      fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignment Overview', refresh: 'Refresh', close: 'Close',
-      todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All assignments',
+      fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close',
+      todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All',
       updated: (t, n) => `Updated ${t} · ${n} total`,
       left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
-      loading: 'Loading…', empty: 'Nothing here 🎉', error: 'Failed to load. Tap “Refresh” to try again.',
+      search: 'Search assignments or courses', loading: 'Loading…', empty: 'Nothing here 🎉',
+      noMatch: 'No matching assignments', error: 'Failed to load. Tap refresh to try again.',
     },
     'zh-TW': {
       fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉',
-      todo: '未繳・進行中', missed: '未繳・已過期', done: '已繳交', all: '所有作業',
+      todo: '進行中', missed: '已過期', done: '已繳交', all: '全部',
       updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
       left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
-      loading: '載入中…', empty: '這裡沒有作業 🎉', error: '讀取失敗，請按「重新整理」再試一次',
+      search: '搜尋作業或課程', loading: '載入中…', empty: '這裡沒有作業 🎉',
+      noMatch: '找不到符合的作業', error: '讀取失敗，請按重新整理再試一次',
     },
     'zh-CN': {
       fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭',
-      todo: '未缴・进行中', missed: '未缴・已过期', done: '已缴交', all: '所有作业',
+      todo: '进行中', missed: '已过期', done: '已缴交', all: '全部',
       updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
       left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
-      loading: '加载中…', empty: '这里没有作业 🎉', error: '读取失败，请按“刷新”再试一次',
+      search: '搜索作业或课程', loading: '加载中…', empty: '这里没有作业 🎉',
+      noMatch: '找不到符合的作业', error: '读取失败，请按刷新再试一次',
     },
+  };
+  // 狀態標籤（卡片上的小標）比篩選卡片多帶「未繳」
+  const TAG = {
+    en: { todo: 'Not submitted', missed: 'Overdue', done: 'Submitted' },
+    'zh-TW': { todo: '未繳・進行中', missed: '未繳・已過期', done: '已繳交' },
+    'zh-CN': { todo: '未缴・进行中', missed: '未缴・已过期', done: '已缴交' },
   };
   function detectLang() {
     const l = (document.documentElement.lang || '').toLowerCase();
@@ -147,9 +157,18 @@
     if (txt.includes('繁體')) return 'zh-TW';
     return txt.includes('English') ? 'en' : 'zh-TW';
   }
-  const T = I18N[detectLang()];
+  const LANG = detectLang();
+  const T = I18N[LANG], TG = TAG[LANG];
 
   const ORDER = { todo: 0, missed: 1, done: 2 };
+
+  const ICON = {
+    refresh: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+    close: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    book: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/></svg>',
+  };
 
   // ---------- 介面（Shadow DOM，不受網站 CSS 影響） ----------
   const host = document.createElement('div');
@@ -158,70 +177,130 @@
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `
 <style>
-:host{all:initial}
-*{box-sizing:border-box;font-family:system-ui,"Microsoft JhengHei","Noto Sans TC",sans-serif}
-.fab{position:fixed;right:16px;bottom:16px;z-index:2147483646;border:0;border-radius:28px;
-  background:#1a5fb4;color:#fff;padding:12px 16px;font-size:15px;font-weight:600;
-  box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;display:flex;gap:8px;align-items:center}
-.fab .b{background:#fff;color:#b3261e;border-radius:10px;padding:0 7px;font-size:13px;min-width:20px;text-align:center}
-.fab .b.ok{color:#1b7a2f}
-.mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:2147483646;display:none}
-.panel{position:fixed;z-index:2147483647;right:16px;bottom:76px;width:min(560px,calc(100vw - 32px));
-  max-height:min(75vh,720px);background:#fff;color:#222;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.3);
-  display:none;flex-direction:column;overflow:hidden}
-/* 網站導覽列：電腦版 ≥992px 顯示，手機版 <992px 顯示；有對應按鈕時才藏起浮動按鈕 */
-@media (min-width:992px){.fab.nd{display:none}.panel.top{top:64px;bottom:auto}}
+:host{all:initial;--top:0px;--ease:cubic-bezier(.22,1,.36,1);
+  --blue:#1f5fbf;--ink:#1d2433;--sub:#5b6474;--line:#e8ebf0;--bg:#f5f7fa;
+  --todo:#d97706;--todo-bg:#fff4e0;--missed:#d93025;--missed-bg:#fdecea;--done:#188038;--done-bg:#e6f4ea}
+*{box-sizing:border-box;font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif}
+button{font:inherit;color:inherit}
+
+/* 浮動按鈕（只在沒有網站導覽列時出現） */
+.fab{position:fixed;right:16px;bottom:16px;z-index:2147483645;border:0;border-radius:28px;
+  background:var(--blue);color:#fff;padding:12px 16px;font-size:15px;font-weight:600;
+  box-shadow:0 6px 18px rgba(31,95,191,.35);cursor:pointer;display:flex;gap:8px;align-items:center;
+  transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+.fab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(31,95,191,.4)}
+.fab .b{background:#fff;color:var(--missed);border-radius:10px;padding:0 7px;font-size:13px;min-width:20px;text-align:center}
+.fab .b.ok{color:var(--done)}
+@media (min-width:992px){.fab.nd{display:none}}
 @media (max-width:991px){.fab.nm{display:none}}
-.hd{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #eee}
-.hd h2{font-size:16px;margin:0;flex:1}
-.hd button{border:0;background:#f0f2f5;border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:#222}
-.meta{font-size:12px;color:#666;padding:6px 14px 0}
-.filters{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px}
-.filters button{border:1px solid #ccc;background:#fff;border-radius:16px;padding:6px 10px;font-size:13px;cursor:pointer;color:#222}
-.filters button.on{background:#222;color:#fff;border-color:#222}
-.list{overflow:auto;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
-.item{display:block;text-decoration:none;color:inherit;padding:10px 8px;border-bottom:1px solid #f0f0f0;border-radius:6px}
-.item:hover{background:#f7f9fc}
-.row1{display:flex;gap:8px;align-items:center;font-size:12px;color:#666}
-.tag{padding:2px 8px;border-radius:10px;font-size:12px;white-space:nowrap}
-.tag.done{background:#e3f5e6;color:#1b7a2f}.tag.todo{background:#fff1d6;color:#9a5b00}.tag.missed{background:#fde2e2;color:#b3261e}
-.left{color:#c25700;font-weight:600}
-.title{font-size:14px;margin-top:4px;line-height:1.4}
-.item.done .title{color:#777}
-.course{font-size:12px;color:#888;margin-top:2px}
-.msg{padding:24px 14px;text-align:center;color:#666;font-size:14px}
+
+/* 背景遮罩 */
+.mask{position:fixed;left:0;right:0;bottom:0;top:var(--top);z-index:2147483646;
+  background:rgba(15,23,42,.38);opacity:0;pointer-events:none;transition:opacity .35s var(--ease)}
+:host(.open) .mask{opacity:1;pointer-events:auto}
+
+/* 右側抽屜 */
+.drawer{position:fixed;right:0;bottom:0;top:var(--top);z-index:2147483647;width:min(640px,100vw);
+  background:var(--bg);color:var(--ink);display:flex;flex-direction:column;
+  box-shadow:-12px 0 40px rgba(15,23,42,.18);transform:translateX(104%);visibility:hidden;
+  transition:transform .42s var(--ease),visibility 0s linear .42s}
+:host(.open) .drawer{transform:none;visibility:visible;transition:transform .42s var(--ease),visibility 0s}
+
+.hd{background:linear-gradient(135deg,#1f5fbf,#3b82d6);color:#fff;padding:18px 20px 16px;flex:none}
+.hd-row{display:flex;align-items:center;gap:8px}
+.hd h2{margin:0;font-size:20px;font-weight:700;flex:1;letter-spacing:.3px}
+.icon-btn{border:0;background:rgba(255,255,255,.16);color:#fff;width:36px;height:36px;border-radius:10px;
+  display:grid;place-items:center;cursor:pointer;transition:background .2s,transform .2s var(--ease)}
+.icon-btn:hover{background:rgba(255,255,255,.28)}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn.spin svg{animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.meta{font-size:12.5px;opacity:.85;margin-top:4px;min-height:16px}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px 4px;margin-top:-2px;flex:none}
+.stat{border:1.5px solid transparent;background:#fff;border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer;
+  box-shadow:0 1px 3px rgba(15,23,42,.08);transition:transform .2s var(--ease),box-shadow .2s var(--ease),border-color .2s,background .2s}
+.stat:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.1)}
+.stat .n{font-size:24px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .l{font-size:12.5px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.todo .n{color:var(--todo)}.stat.missed .n{color:var(--missed)}.stat.done .n{color:var(--done)}.stat.all .n{color:var(--blue)}
+.stat.on.todo{border-color:var(--todo);background:var(--todo-bg)}
+.stat.on.missed{border-color:var(--missed);background:var(--missed-bg)}
+.stat.on.done{border-color:var(--done);background:var(--done-bg)}
+.stat.on.all{border-color:var(--blue);background:#e8f0fc}
+
+.search{margin:10px 20px 6px;position:relative;flex:none}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8a93a3}
+.search input{width:100%;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px 10px 36px;
+  font-size:14px;color:var(--ink);outline:none;transition:border-color .2s,box-shadow .2s}
+.search input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(31,95,191,.15)}
+
+.list{flex:1;overflow:auto;padding:6px 20px 24px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.item{position:relative;display:block;text-decoration:none;color:inherit;background:#fff;border-radius:14px;
+  padding:12px 14px 12px 18px;margin-top:10px;box-shadow:0 1px 3px rgba(15,23,42,.07);overflow:hidden;
+  transition:transform .2s var(--ease),box-shadow .2s var(--ease);animation:rise .42s var(--ease) both}
+.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.item.todo{--c:var(--todo)}.item.missed{--c:var(--missed)}.item.done{--c:var(--done)}
+.item:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,23,42,.1)}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.top-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.todo .tag{color:var(--todo);background:var(--todo-bg)}.missed .tag{color:var(--missed);background:var(--missed-bg)}.done .tag{color:var(--done);background:var(--done-bg)}
+.left{margin-left:auto;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;color:#1f5fbf;background:#e8f0fc}
+.left.soon{color:var(--todo);background:var(--todo-bg)}
+.left.urgent{color:var(--missed);background:var(--missed-bg)}
+.score{margin-left:auto;font-size:12.5px;color:var(--sub)}
+.title{font-size:15px;font-weight:600;line-height:1.45;margin-top:7px;color:var(--ink)}
+.item.done .title{color:#6b7280;font-weight:500}
+.sub{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--sub)}
+.sub span{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.msg{padding:48px 14px;text-align:center;color:var(--sub);font-size:14px;animation:rise .4s var(--ease) both}
+.skel{height:86px;border-radius:14px;margin-top:10px;background:linear-gradient(90deg,#eceff3 25%,#f6f7f9 50%,#eceff3 75%);
+  background-size:200% 100%;animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+
 @media (max-width:600px){
-  .panel,.panel.top{right:0;left:0;top:auto;bottom:0;width:100%;max-height:85vh;border-radius:14px 14px 0 0}
+  .hd{padding:14px 16px 12px}.stats{padding:12px 16px 2px;gap:8px}.search{margin:8px 16px 4px}.list{padding:4px 16px 20px}
+  .stat{padding:8px 9px;border-radius:12px}.stat .n{font-size:20px}.stat .l{font-size:11.5px}
   .fab{right:12px;bottom:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,.drawer,:host(.open) .drawer{animation:none!important;transition:none!important}
 }
 </style>
 <div class="mask"></div>
 <button class="fab" title="${T.title}">${T.fab} <span class="b">…</span></button>
-<div class="panel" role="dialog" aria-label="${T.title}">
-  <div class="hd"><h2>${T.title}</h2><button class="refresh">${T.refresh}</button><button class="close" aria-label="${T.close}">✕</button></div>
-  <div class="meta"></div>
-  <div class="filters"></div>
-  <div class="list"><div class="msg">${T.loading}</div></div>
-</div>`;
+<aside class="drawer" role="dialog" aria-modal="true" aria-label="${T.title}">
+  <div class="hd">
+    <div class="hd-row"><h2>${T.title}</h2>
+      <button class="icon-btn refresh" title="${T.refresh}" aria-label="${T.refresh}">${ICON.refresh}</button>
+      <button class="icon-btn close" title="${T.close}" aria-label="${T.close}">${ICON.close}</button></div>
+    <div class="meta"></div>
+  </div>
+  <div class="stats"></div>
+  <label class="search">${ICON.search}<input type="search" placeholder="${T.search}" aria-label="${T.search}"></label>
+  <div class="list"></div>
+</aside>`;
 
   const $ = s => root.querySelector(s);
-  let data = null, filter = 'todo';
+  let data = null, filter = 'todo', query = '';
 
   function fmt(ts) {
     const d = new Date(ts), p = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
-  function leftText(ts, now) {
+  function leftInfo(ts, now) {
     const ms = ts - now, h = Math.floor(ms / 3600000), d = Math.floor(h / 24);
-    return T.left(d, h % 24);
+    return { text: T.left(d, h % 24), cls: h < 24 ? 'urgent' : h < 72 ? 'soon' : '' };
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function skeleton() { $('.list').innerHTML = '<div class="skel"></div>'.repeat(5); }
 
   function render() {
     const now = Date.now();
     if (!data) return;
     const items = data.items.map(h => ({ ...h, st: statusOf(h, now) }));
-    const n = { todo: 0, missed: 0, done: 0 };
+    const n = { todo: 0, missed: 0, done: 0, all: items.length };
     items.forEach(h => n[h.st]++);
 
     const badge = $('.fab .b');
@@ -229,35 +308,49 @@
     badge.classList.toggle('ok', n.todo === 0);
     document.querySelectorAll('.fca-nav-badge').forEach(b => {
       b.textContent = n.todo;
-      b.style.color = n.todo === 0 ? '#1b7a2f' : '#b3261e';
+      b.style.color = n.todo === 0 ? '#188038' : '#d93025';
     });
 
-    $(".meta").textContent = T.updated(fmt(data.time), items.length);
-    $('.filters').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
-      `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${T[k]} ${k === 'all' ? items.length : n[k]}</button>`).join('');
+    $('.meta').textContent = T.updated(fmt(data.time), items.length);
+    $('.stats').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
+      `<button class="stat ${k}${k === filter ? ' on' : ''}" data-f="${k}" aria-pressed="${k === filter}">
+         <div class="n">${n[k]}</div><div class="l">${T[k]}</div></button>`).join('');
 
-    const shown = items.filter(h => filter === 'all' || h.st === filter).sort((a, b) => {
-      if (ORDER[a.st] !== ORDER[b.st]) return ORDER[a.st] - ORDER[b.st];
-      const da = a.deadline ?? Infinity, db = b.deadline ?? Infinity;
-      return a.st === 'todo' ? da - db : db - da;
-    });
-    $('.list').innerHTML = shown.length ? shown.map(h => `
-      <a class="item ${h.st}" href="${esc(h.href)}">
-        <div class="row1"><span class="tag ${h.st}">${T[h.st]}</span>
-          <span>${h.deadline ? fmt(h.deadline) : esc(h.termText)}</span>
-          ${h.st === 'todo' && h.deadline ? `<span class="left">${leftText(h.deadline, now)}</span>` : ''}</div>
+    const q = query.trim().toLowerCase();
+    const shown = items
+      .filter(h => filter === 'all' || h.st === filter)
+      .filter(h => !q || (h.title + ' ' + h.course).toLowerCase().includes(q))
+      .sort((a, b) => {
+        if (ORDER[a.st] !== ORDER[b.st]) return ORDER[a.st] - ORDER[b.st];
+        const da = a.deadline ?? Infinity, db = b.deadline ?? Infinity;
+        return a.st === 'todo' ? da - db : db - da;
+      });
+
+    $('.list').innerHTML = shown.length ? shown.map((h, i) => {
+      const left = h.st === 'todo' && h.deadline ? leftInfo(h.deadline, now) : null;
+      const score = h.st === 'done' && h.score && h.score !== '-' ? `<span class="score">${esc(h.score)}</span>` : '';
+      return `
+      <a class="item ${h.st}" href="${esc(h.href)}" style="animation-delay:${Math.min(i, 12) * 28}ms">
+        <div class="top-row"><span class="tag">${TG[h.st]}</span>
+          ${left ? `<span class="left ${left.cls}">${left.text}</span>` : score}</div>
         <div class="title">${esc(h.title)}</div>
-        <div class="course">${esc(h.course)}${h.score && h.score !== '-' ? '・' + esc(h.score) : ''}</div>
-      </a>`).join('') : `<div class="msg">${T.empty}</div>`;
+        <div class="sub"><span>${ICON.cal}${h.deadline ? fmt(h.deadline) : esc(h.termText)}</span>
+          <span>${ICON.book}${esc(h.course)}</span></div>
+      </a>`;
+    }).join('') : `<div class="msg">${q ? T.noMatch : T.empty}</div>`;
   }
 
   async function refresh(force) {
-    $('.list').innerHTML = `<div class="msg">${T.loading}</div>`;
+    const btn = $('.refresh');
+    btn.classList.add('spin');
+    if (!data || force) skeleton();
     try {
       data = await loadAll(force);
     } catch (e) {
       $('.list').innerHTML = `<div class="msg">${T.error}</div>`;
       return;
+    } finally {
+      btn.classList.remove('spin');
     }
     if (!data) { // 沒登入就不顯示
       host.remove();
@@ -270,7 +363,7 @@
   // ---------- 放進網站導覽列 ----------
   // 電腦版：上方導覽列「我的課程」左邊；手機版：上方 ☰ 列、👤 圖示左邊。
   // 找不到導覽列的頁面才用右下角浮動按鈕。
-  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#b3261e;border-radius:10px;' +
+  const BADGE_STYLE = 'display:inline-block;background:#fff;color:#d93025;border-radius:10px;' +
     'padding:0 7px;margin-left:6px;font-size:12px;line-height:18px;font-weight:600;min-width:20px;text-align:center';
   function mountNav() {
     const open = e => { e.preventDefault(); setOpen(true); };
@@ -284,7 +377,6 @@
       li.firstChild.addEventListener('click', open);
       li0.before(li);
       $('.fab').classList.add('nd');
-      $('.panel').classList.add('top');
     }
 
     const btns = document.querySelector('.navbar-header .fs-navbar-btns');
@@ -299,7 +391,6 @@
       btns.prepend(a);
       $('.fab').classList.add('nm');
     }
-
   }
 
   // Dashboard「Recent Event」區塊：More 移到左邊，右邊放「Show all assignments」
@@ -319,23 +410,47 @@
     row.appendChild(a);
   }
 
+  // ---------- 開關抽屜 ----------
+  // 抽屜從網站上方那條導覽列的下緣開始，佔滿剩下的高度
+  function navBottom() {
+    let b = 0;
+    document.querySelectorAll('#page-sysbar nav, .fs-mobile-navbar nav').forEach(n => {
+      const r = n.getBoundingClientRect();
+      if (r.height > 0) b = Math.max(b, r.bottom);
+    });
+    return Math.max(0, Math.round(b));
+  }
+  function syncTop() { host.style.setProperty('--top', navBottom() + 'px'); }
+
+  let isOpen = false, prevOverflow = '';
   function setOpen(open) {
-    root.host.classList.toggle('open', open);
-    $('.panel').style.display = open ? 'flex' : '';
-    $('.mask').style.display = open ? 'block' : '';
-    if (window.matchMedia('(max-width:600px)').matches) $('.fab').style.display = open ? 'none' : '';
+    if (open === isOpen) return;
+    isOpen = open;
+    if (open) {
+      syncTop();
+      prevOverflow = document.documentElement.style.overflow;
+      document.documentElement.style.overflow = 'hidden'; // 開著時背景頁面不捲動
+      if (data) render(); // 重新播放卡片進場動畫
+    } else {
+      document.documentElement.style.overflow = prevOverflow;
+    }
+    host.classList.toggle('open', open);
+    if (open) setTimeout(() => $('.close').focus({ preventScroll: true }), 50);
   }
 
   $('.fab').addEventListener('click', () => setOpen(true));
   $('.close').addEventListener('click', () => setOpen(false));
   $('.mask').addEventListener('click', () => setOpen(false));
   $('.refresh').addEventListener('click', () => refresh(true));
-  $('.filters').addEventListener('click', e => {
+  $('.stats').addEventListener('click', e => {
     const b = e.target.closest('button[data-f]');
-    if (b) { filter = b.dataset.f; render(); }
+    if (b && b.dataset.f !== filter) { filter = b.dataset.f; render(); $('.list').scrollTop = 0; }
   });
+  $('.search input').addEventListener('input', e => { query = e.target.value; render(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen) setOpen(false); });
+  window.addEventListener('resize', () => { if (isOpen) syncTop(); });
 
   // 登入頁不載入
-  if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); refresh(false); }
+  if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); skeleton(); refresh(false); }
   else host.remove();
 })();
