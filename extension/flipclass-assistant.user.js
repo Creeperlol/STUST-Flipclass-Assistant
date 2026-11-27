@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.10.0
+// @version      1.10.1
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -93,7 +93,8 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     if (l > 0.62) return null;
     if (s > 0.3) return hsla(h, Math.min(s * 1.4, 0.9), Math.max(0.58, Math.min(0.72, 0.62 + (0.45 - l) * 0.3)), c[3]);
     const nl = l < 0.3 ? 0.96 - l * 0.4 : 0.6;
-    return hsla(215, l < 0.3 ? 0.6 : 0.08, nl, c[3]);
+    // 只留一點點藍灰色調，避免文字看起來偏藍
+    return hsla(215, l < 0.3 ? 0.12 : 0.06, nl, c[3]);
   }
   function mapBorder(c) { // 淺色框線 → #30363d
     const [h0, s0, l] = toHsl(c);
@@ -213,7 +214,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.10.0';
+    let VERSION = '1.10.1';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
