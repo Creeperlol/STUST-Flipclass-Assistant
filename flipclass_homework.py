@@ -97,41 +97,28 @@ def get_homework(session: requests.Session, course_id: str, course_name: str, no
     table = soup.find("table")
     if not table:
         return []
-    headers = [th.get_text(strip=True) for th in table.find_all("th")]
-
-    def col(*names):
-        for n in names:
-            if n in headers:
-                return headers.index(n)
-        return None
-
-    i_title = col("Title", "標題")
-    i_start = col("Start Time", "開始時間")
-    i_term = col("Term", "期限", "截止時間")
-    i_submit = col("Submit", "繳交")
-    i_score = col("Score", "成績")
-
+    # 用欄位的 CSS class 找欄位，網站切成任何語言都一樣：
+    # 開始 / 期限 = 第一 / 最後一個 col-date、繳交 = col-char2、成績 = 繳交的下一欄
     items = []
     for tr in table.select("tbody tr"):
-        tds = tr.find_all("td")
-        if len(tds) < len(headers):
-            continue
-        a = tds[i_title].find("a", href=True) if i_title is not None else None
+        a = tr.select_one('a[href^="/course/homework/"]')
         if not a:
             continue
-        deadline_text = tds[i_term].get_text(strip=True) if i_term is not None else ""
+        dates = tr.select("td.col-date")
+        submit_td = tr.select_one("td.col-char2")
+        score_td = submit_td.find_next_sibling("td") if submit_td else None
+        deadline_text = dates[-1].get_text(strip=True) if dates else ""
         deadline = infer_datetime(deadline_text, now)
-        submitted = bool(i_submit is not None and tds[i_submit].select_one(".fa-check"))
         items.append({
             "course": course_name,
             "title": a.get("title") or a.get_text(strip=True),
             "url": BASE + a["href"],
-            "start": tds[i_start].get_text(strip=True) if i_start is not None else "",
+            "start": dates[0].get_text(strip=True) if dates else "",
             "deadline": deadline,
             "deadline_text": deadline_text,
-            "submitted": submitted,
+            "submitted": bool(submit_td and submit_td.select_one(".fa-check")),
             "expired": bool(deadline and deadline < now),
-            "score": tds[i_score].get_text(strip=True) if i_score is not None else "",
+            "score": score_td.get_text(strip=True) if score_td else "",
         })
     return items
 

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.0.0
-// @description  FlipClass 作業總覽：列出所有課程的作業，標示已繳交 / 未繳（進行中）/ 未繳（已過期）
+// @version      1.1.0
+// @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
 // @match        https://flipclass.stust.edu.tw/*
@@ -64,17 +64,17 @@
     const { doc } = await fetchDoc('/course/homeworkList/' + course.id);
     const table = doc.querySelector('table');
     if (!table) return [];
-    const heads = [...table.querySelectorAll('th')].map(th => th.textContent.trim());
-    const col = (...names) => { for (const n of names) { const i = heads.indexOf(n); if (i >= 0) return i; } return -1; };
-    const iTitle = col('Title', '標題'), iTerm = col('Term', '期限', '截止時間'),
-          iSubmit = col('Submit', '繳交'), iScore = col('Score', '成績');
+    // 用欄位的 CSS class 找欄位，網站切換成任何語言都一樣：
+    // 期限 = 最後一個 col-date、繳交 = col-char2、成績 = 繳交的下一欄
     const out = [];
     table.querySelectorAll('tbody tr').forEach(tr => {
-      const td = tr.cells;
-      if (td.length < heads.length) return;
-      const a = iTitle >= 0 && td[iTitle].querySelector('a[href]');
+      const a = tr.querySelector('a[href^="/course/homework/"]');
       if (!a) return;
-      const termText = iTerm >= 0 ? td[iTerm].textContent.trim() : '';
+      const dates = tr.querySelectorAll('td.col-date');
+      const termTd = dates[dates.length - 1];
+      const submitTd = tr.querySelector('td.col-char2');
+      const scoreTd = submitTd && submitTd.nextElementSibling;
+      const termText = termTd ? termTd.textContent.trim() : '';
       const d = inferDate(termText, now);
       out.push({
         course: course.name,
@@ -82,8 +82,8 @@
         href: a.getAttribute('href'),
         deadline: d ? d.getTime() : null,
         termText,
-        submitted: iSubmit >= 0 && !!td[iSubmit].querySelector('.fa-check'),
-        score: iScore >= 0 ? td[iScore].textContent.trim() : '',
+        submitted: !!(submitTd && submitTd.querySelector('.fa-check')),
+        score: scoreTd ? scoreTd.textContent.trim() : '',
       });
     });
     return out;
@@ -111,7 +111,44 @@
     return 'todo';
   }
 
-  const LABEL = { todo: '未繳・進行中', missed: '未繳・已過期', done: '已繳交' };
+  // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
+  const I18N = {
+    en: {
+      fab: 'Assignments', title: 'Assignment Overview', refresh: 'Refresh', close: 'Close',
+      todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All assignments',
+      updated: (t, n) => `Updated ${t} · ${n} total`,
+      left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
+      loading: 'Loading…', empty: 'Nothing here 🎉', error: 'Failed to load. Tap “Refresh” to try again.',
+    },
+    'zh-TW': {
+      fab: '作業', title: '作業總覽', refresh: '重新整理', close: '關閉',
+      todo: '未繳・進行中', missed: '未繳・已過期', done: '已繳交', all: '所有作業',
+      updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
+      left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
+      loading: '載入中…', empty: '這裡沒有作業 🎉', error: '讀取失敗，請按「重新整理」再試一次',
+    },
+    'zh-CN': {
+      fab: '作业', title: '作业总览', refresh: '刷新', close: '关闭',
+      todo: '未缴・进行中', missed: '未缴・已过期', done: '已缴交', all: '所有作业',
+      updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
+      left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
+      loading: '加载中…', empty: '这里没有作业 🎉', error: '读取失败，请按“刷新”再试一次',
+    },
+  };
+  function detectLang() {
+    const l = (document.documentElement.lang || '').toLowerCase();
+    if (l.startsWith('en')) return 'en';
+    if (/zh[-_](cn|sg|hans)/.test(l)) return 'zh-CN';
+    if (l.startsWith('zh')) return 'zh-TW';
+    // 沒有 lang 屬性時，看右上角語言選單目前顯示的文字
+    const cur = document.querySelector('.fa-globe');
+    const txt = cur ? cur.parentElement.textContent.trim() : '';
+    if (txt.includes('简体')) return 'zh-CN';
+    if (txt.includes('繁體')) return 'zh-TW';
+    return txt.includes('English') ? 'en' : 'zh-TW';
+  }
+  const T = I18N[detectLang()];
+
   const ORDER = { todo: 0, missed: 1, done: 2 };
 
   // ---------- 介面（Shadow DOM，不受網站 CSS 影響） ----------
@@ -158,12 +195,12 @@
 }
 </style>
 <div class="mask"></div>
-<button class="fab" title="作業總覽">作業 <span class="b">…</span></button>
-<div class="panel" role="dialog" aria-label="作業總覽">
-  <div class="hd"><h2>作業總覽</h2><button class="refresh">重新整理</button><button class="close" aria-label="關閉">✕</button></div>
+<button class="fab" title="${T.title}">${T.fab} <span class="b">…</span></button>
+<div class="panel" role="dialog" aria-label="${T.title}">
+  <div class="hd"><h2>${T.title}</h2><button class="refresh">${T.refresh}</button><button class="close" aria-label="${T.close}">✕</button></div>
   <div class="meta"></div>
   <div class="filters"></div>
-  <div class="list"><div class="msg">載入中…</div></div>
+  <div class="list"><div class="msg">${T.loading}</div></div>
 </div>`;
 
   const $ = s => root.querySelector(s);
@@ -175,7 +212,7 @@
   }
   function leftText(ts, now) {
     const ms = ts - now, h = Math.floor(ms / 3600000), d = Math.floor(h / 24);
-    return d > 0 ? `剩 ${d} 天 ${h % 24} 小時` : `剩 ${h} 小時`;
+    return T.left(d, h % 24);
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -190,9 +227,9 @@
     badge.textContent = n.todo;
     badge.classList.toggle('ok', n.todo === 0);
 
-    $('.meta').textContent = `更新於 ${fmt(data.time)}・共 ${items.length} 份`;
+    $(".meta").textContent = T.updated(fmt(data.time), items.length);
     $('.filters').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
-      `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${k === 'all' ? '全部' : LABEL[k]} ${k === 'all' ? items.length : n[k]}</button>`).join('');
+      `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${T[k]} ${k === 'all' ? items.length : n[k]}</button>`).join('');
 
     const shown = items.filter(h => filter === 'all' || h.st === filter).sort((a, b) => {
       if (ORDER[a.st] !== ORDER[b.st]) return ORDER[a.st] - ORDER[b.st];
@@ -201,20 +238,20 @@
     });
     $('.list').innerHTML = shown.length ? shown.map(h => `
       <a class="item ${h.st}" href="${esc(h.href)}">
-        <div class="row1"><span class="tag ${h.st}">${LABEL[h.st]}</span>
+        <div class="row1"><span class="tag ${h.st}">${T[h.st]}</span>
           <span>${h.deadline ? fmt(h.deadline) : esc(h.termText)}</span>
           ${h.st === 'todo' && h.deadline ? `<span class="left">${leftText(h.deadline, now)}</span>` : ''}</div>
         <div class="title">${esc(h.title)}</div>
         <div class="course">${esc(h.course)}${h.score && h.score !== '-' ? '・' + esc(h.score) : ''}</div>
-      </a>`).join('') : '<div class="msg">這裡沒有作業 🎉</div>';
+      </a>`).join('') : `<div class="msg">${T.empty}</div>`;
   }
 
   async function refresh(force) {
-    $('.list').innerHTML = '<div class="msg">載入中…</div>';
+    $('.list').innerHTML = `<div class="msg">${T.loading}</div>`;
     try {
       data = await loadAll(force);
     } catch (e) {
-      $('.list').innerHTML = '<div class="msg">讀取失敗，請稍後按「重新整理」</div>';
+      $('.list').innerHTML = `<div class="msg">${T.error}</div>`;
       return;
     }
     if (!data) { host.remove(); return; } // 沒登入就不顯示
