@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.12.0
+// @version      1.12.1
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -270,10 +270,17 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   // 萬一出錯也不要讓頁面一直隱藏
   setTimeout(() => document.documentElement.setAttribute('data-fca-ready', ''), 2500);
 
+  // 其他分頁、或網站彈窗裡的內嵌頁面切換日夜時，這裡也跟著換
+  window.addEventListener('storage', e => { if (e.key === DARK_KEY) setDark(e.newValue === '1', false); });
+
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
+    // 網站的彈窗（例如公告）是用 iframe 載入另一個頁面：裡面只要夜間模式，不要作業按鈕和面板
+    let framed = true;
+    try { framed = window.top !== window.self; } catch (e) { /* 跨網域的上層視窗 */ }
+    if (framed) return;
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.12.0';
+    let VERSION = '1.12.1';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
