@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.6.1
+// @version      1.7.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -178,89 +178,106 @@
   root.innerHTML = `
 <style>
 :host{all:initial;--top:0px;--ease:cubic-bezier(.22,1,.36,1);
-  --blue:#4c5fd5;--blue-bg:#eef0fc;--ink:#22252b;--sub:#6b7079;--line:#e6e4df;--bg:#f6f5f2;--hd:#2a2d34;
-  --todo:#c27a12;--todo-bg:#fbf3e3;--missed:#c8423a;--missed-bg:#fbecea;--done:#2f8a5b;--done-bg:#e7f4ec}
+  --bg:#141518;--panel:#1c1d21;--panel2:#24262b;--line:#2f3137;--line2:#43464d;
+  --ink:#ececec;--sub:#8c8f96;--dim:#5d6067;--acc:#ffd23c;
+  --todo:#ffd23c;--missed:#ff5a4e;--done:#35c9c1;--all:#ececec}
 *{box-sizing:border-box;font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif}
 button{font:inherit;color:inherit}
+.num,.stat .n,.left,.idx,.code,.meta{font-family:Bahnschrift,"DIN Alternate","Roboto Condensed","Arial Narrow",system-ui,sans-serif;font-variant-numeric:tabular-nums}
 
 /* 浮動按鈕（只在沒有網站導覽列時出現） */
-.fab{position:fixed;right:16px;bottom:16px;z-index:2147483645;border:0;border-radius:6px;
-  background:var(--blue);color:#fff;padding:12px 16px;font-size:15px;font-weight:600;
-  cursor:pointer;display:flex;gap:8px;align-items:center;transition:background .15s}
-.fab:hover{background:#3d4fc0}
-.fab .b{background:#fff;color:var(--missed);border-radius:4px;padding:0 7px;font-size:13px;min-width:20px;text-align:center}
+.fab{position:fixed;right:16px;bottom:16px;z-index:2147483645;border:0;border-radius:0;
+  background:var(--bg);color:var(--ink);padding:12px 18px 12px 16px;font-size:15px;font-weight:700;
+  border-left:4px solid var(--acc);cursor:pointer;display:flex;gap:8px;align-items:center;transition:background .15s}
+.fab:hover{background:#26282d}
+.fab .b{color:var(--acc)}
 .fab .b.ok{color:var(--done)}
 @media (min-width:992px){.fab.nd{display:none}}
 @media (max-width:991px){.fab.nm{display:none}}
 
 /* 背景遮罩 */
 .mask{position:fixed;left:0;right:0;bottom:0;top:var(--top);z-index:2147483646;
-  background:rgba(15,23,42,.38);opacity:0;pointer-events:none;transition:opacity .35s var(--ease)}
+  background:rgba(8,9,11,.55);opacity:0;pointer-events:none;transition:opacity .35s var(--ease)}
 :host(.open) .mask{opacity:1;pointer-events:auto}
 
 /* 右側抽屜 */
 .drawer{position:fixed;right:0;bottom:0;top:var(--top);z-index:2147483647;width:min(640px,100vw);
   background:var(--bg);color:var(--ink);display:flex;flex-direction:column;
-  border-left:1px solid var(--line);transform:translateX(104%);visibility:hidden;
+  transform:translateX(104%);visibility:hidden;
   transition:transform .42s var(--ease),visibility 0s linear .42s}
 :host(.open) .drawer{transform:none;visibility:visible;transition:transform .42s var(--ease),visibility 0s}
+.drawer::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc)}
 
-.hd{background:var(--hd);color:#fff;padding:18px 20px 16px;flex:none}
-.hd-row{display:flex;align-items:center;gap:8px}
-.hd h2{margin:0;font-size:20px;font-weight:700;flex:1;letter-spacing:.3px}
-.icon-btn{border:0;background:rgba(255,255,255,.1);color:#fff;width:36px;height:36px;border-radius:6px;
-  display:grid;place-items:center;cursor:pointer;transition:background .2s,transform .2s var(--ease)}
-.icon-btn:hover{background:rgba(255,255,255,.2)}
-.icon-btn:active{background:rgba(255,255,255,.28)}
+/* 標題 */
+.hd{padding:20px 22px 0;flex:none;position:relative}
+.hd-row{display:flex;align-items:flex-start;gap:6px}
+.ttl{flex:1;min-width:0}
+.code{font-size:11px;letter-spacing:3px;color:var(--acc);font-weight:600}
+.hd h2{margin:2px 0 0;font-size:26px;font-weight:800;letter-spacing:1px;line-height:1.15}
+.icon-btn{border:1px solid var(--line2);background:transparent;color:var(--ink);width:36px;height:36px;border-radius:0;
+  display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.icon-btn:hover{background:var(--acc);border-color:var(--acc);color:#111}
 .icon-btn.spin svg{animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.meta{font-size:12.5px;opacity:.65;margin-top:4px;min-height:16px}
+.meta{font-size:12px;color:var(--sub);margin-top:10px;min-height:16px;letter-spacing:.5px;
+  display:flex;align-items:center;gap:10px}
+.meta::after{content:"";flex:1;height:6px;
+  background:repeating-linear-gradient(-45deg,var(--line2) 0 2px,transparent 2px 6px)}
 
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px 4px;margin-top:-2px;flex:none}
-.stat{border:1px solid var(--line);background:#fff;border-radius:6px;padding:10px 12px;text-align:left;cursor:pointer;
-  transition:border-color .15s,background .15s}
-.stat:hover{background:#faf9f7;border-color:#d6d3cc}
-.stat .n{font-size:24px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
-.stat .l{font-size:12.5px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stat.todo .n{color:var(--todo)}.stat.missed .n{color:var(--missed)}.stat.done .n{color:var(--done)}.stat.all .n{color:var(--blue)}
-.stat.on.todo{border-color:var(--todo);background:var(--todo-bg)}
-.stat.on.missed{border-color:var(--missed);background:var(--missed-bg)}
-.stat.on.done{border-color:var(--done);background:var(--done-bg)}
-.stat.on.all{border-color:var(--blue);background:var(--blue-bg)}
+/* 統計 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:16px 22px 0;flex:none;
+  border:1px solid var(--line)}
+.stat{border:0;border-right:1px solid var(--line);background:transparent;border-radius:0;padding:12px 14px 12px;
+  text-align:left;cursor:pointer;position:relative;transition:background .15s}
+.stat:last-child{border-right:0}
+.stat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--c);
+  transform:scaleX(0);transform-origin:left;transition:transform .25s var(--ease)}
+.stat:hover{background:var(--panel)}
+.stat.on{background:var(--panel2)}
+.stat.on::after{transform:none}
+.stat.todo{--c:var(--todo)}.stat.missed{--c:var(--missed)}.stat.done{--c:var(--done)}.stat.all{--c:var(--all)}
+.stat .n{font-size:30px;font-weight:600;line-height:1;color:var(--c)}
+.stat .l{font-size:12px;color:var(--sub);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-.search{margin:10px 20px 6px;position:relative;flex:none}
-.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8a93a3}
-.search input{width:100%;border:1px solid var(--line);background:#fff;border-radius:6px;padding:10px 12px 10px 36px;
-  font-size:14px;color:var(--ink);outline:none;transition:border-color .15s}
-.search input:focus{border-color:var(--blue)}
+/* 搜尋 */
+.search{margin:14px 22px 4px;position:relative;flex:none;display:block}
+.search svg{position:absolute;left:0;top:50%;transform:translateY(-50%);color:var(--dim)}
+.search input{width:100%;border:0;border-bottom:1px solid var(--line2);background:transparent;border-radius:0;
+  padding:10px 4px 10px 26px;font-size:14px;color:var(--ink);outline:none;transition:border-color .15s}
+.search input::placeholder{color:var(--dim)}
+.search input:focus{border-bottom-color:var(--acc)}
 
-.list{flex:1;overflow:auto;padding:6px 20px 24px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-.item{position:relative;display:block;text-decoration:none;color:inherit;background:#fff;border-radius:6px;
-  padding:12px 14px 12px 18px;margin-top:8px;border:1px solid var(--line);overflow:hidden;
+/* 清單 */
+.list{flex:1;overflow:auto;padding:8px 22px 28px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.item{position:relative;display:block;text-decoration:none;color:inherit;background:var(--panel);border-radius:0;
+  padding:12px 14px 12px 18px;margin-top:8px;border:1px solid transparent;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);
   transition:background .15s,border-color .15s;animation:rise .3s ease both}
-.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
+.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
 .item.todo{--c:var(--todo)}.item.missed{--c:var(--missed)}.item.done{--c:var(--done)}
-.item:hover{background:#faf9f7;border-color:#d6d3cc}
+.item:hover{background:var(--panel2)}
 @keyframes rise{from{opacity:0}to{opacity:1}}
-.top-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap}
-.todo .tag{color:var(--todo);background:var(--todo-bg)}.missed .tag{color:var(--missed);background:var(--missed-bg)}.done .tag{color:var(--done);background:var(--done-bg)}
-.left{margin-left:auto;font-size:12.5px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;color:var(--blue);background:var(--blue-bg)}
-.left.soon{color:var(--todo);background:var(--todo-bg)}
-.left.urgent{color:var(--missed);background:var(--missed-bg)}
+.top-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.idx{font-size:12px;color:var(--dim);letter-spacing:1px}
+.tag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:0;white-space:nowrap;background:var(--c);color:#111}
+.item.done .tag{background:transparent;color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+.left{margin-left:auto;font-size:13px;font-weight:600;white-space:nowrap;color:var(--sub);letter-spacing:.5px}
+.left.soon{color:var(--todo)}
+.left.urgent{color:var(--missed)}
 .score{margin-left:auto;font-size:12.5px;color:var(--sub)}
-.title{font-size:15px;font-weight:600;line-height:1.45;margin-top:7px;color:var(--ink)}
+.title{font-size:15px;font-weight:600;line-height:1.45;margin-top:8px;color:var(--ink)}
 .item.done .title{color:var(--sub);font-weight:500}
-.sub{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--sub)}
+.sub{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--sub)}
 .sub span{display:inline-flex;align-items:center;gap:5px;min-width:0}
 .msg{padding:48px 14px;text-align:center;color:var(--sub);font-size:14px;animation:rise .4s var(--ease) both}
-.skel{height:86px;border-radius:6px;margin-top:8px;background:linear-gradient(90deg,#ebe9e4 25%,#f4f3ef 50%,#ebe9e4 75%);
+.skel{height:86px;margin-top:8px;background:linear-gradient(90deg,var(--panel) 25%,var(--panel2) 50%,var(--panel) 75%);
   background-size:200% 100%;animation:shimmer 1.2s linear infinite}
 @keyframes shimmer{to{background-position:-200% 0}}
 
 @media (max-width:600px){
-  .hd{padding:14px 16px 12px}.stats{padding:12px 16px 2px;gap:8px}.search{margin:8px 16px 4px}.list{padding:4px 16px 20px}
-  .stat{padding:8px 9px}.stat .n{font-size:20px}.stat .l{font-size:11.5px}
+  .hd{padding:16px 16px 0}.stats{margin:12px 16px 0}.search{margin:10px 16px 4px}.list{padding:4px 16px 20px}
+  .hd h2{font-size:22px}.stat{padding:10px 9px}.stat .n{font-size:24px}.stat .l{font-size:11px}
   .fab{right:12px;bottom:12px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -271,7 +288,7 @@ button{font:inherit;color:inherit}
 <button class="fab" title="${T.title}">${T.fab} <span class="b">…</span></button>
 <aside class="drawer" role="dialog" aria-modal="true" aria-label="${T.title}">
   <div class="hd">
-    <div class="hd-row"><h2>${T.title}</h2>
+    <div class="hd-row"><div class="ttl"><div class="code">ASSIGNMENT / STUST FLIPCLASS</div><h2>${T.title}</h2></div>
       <button class="icon-btn refresh" title="${T.refresh}" aria-label="${T.refresh}">${ICON.refresh}</button>
       <button class="icon-btn close" title="${T.close}" aria-label="${T.close}">${ICON.close}</button></div>
     <div class="meta"></div>
@@ -327,7 +344,7 @@ button{font:inherit;color:inherit}
       const score = h.st === 'done' && h.score && h.score !== '-' ? `<span class="score">${esc(h.score)}</span>` : '';
       return `
       <a class="item ${h.st}" href="${esc(h.href)}" style="animation-delay:${Math.min(i, 12) * 28}ms">
-        <div class="top-row"><span class="tag">${TG[h.st]}</span>
+        <div class="top-row"><span class="idx">${String(i + 1).padStart(2, '0')}</span><span class="tag">${TG[h.st]}</span>
           ${left ? `<span class="left ${left.cls}">${left.text}</span>` : score}</div>
         <div class="title">${esc(h.title)}</div>
         <div class="sub"><span>${ICON.cal}${h.deadline ? fmt(h.deadline) : esc(h.termText)}</span>
