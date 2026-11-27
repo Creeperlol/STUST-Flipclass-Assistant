@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.11.0
+// @version      1.11.1
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -35,7 +35,7 @@ ${D} body{background:#0d1117!important;color:#f0f6fc}
 ${D}:not([data-fca-ready]) body{visibility:hidden}
 ${D} :is(input,textarea,select){background-color:#0d1117;color:#f0f6fc;border-color:#3d444d}
 ${D} :is(input,textarea,select):focus{border-color:#1f6feb}
-${D} :is(img:not(.fs-logo),.img-container,.fs-banner){filter:brightness(.88)}
+${D} :is(img:not(.fs-logo):not(.fs-user-info-photo),.img-container,.fs-banner){filter:brightness(.88)}
 ${D} .fs-banner{border-color:#30363d!important}
 ${D} ${NAV}{background:#010409!important;border-color:#30363d!important;border-width:0 0 1px!important;border-style:solid!important;
   box-shadow:none!important;background-image:none!important}
@@ -59,8 +59,15 @@ ${D} .fca-about a:hover{color:#4493f8!important}
 
   // 顏色換算（HSL）
   let colorCtx = null;
+  const colorMemo = new Map();
   function parseColor(v) {
     v = (v || '').trim();
+    if (colorMemo.has(v)) return colorMemo.get(v);
+    const c = parseColorRaw(v);
+    colorMemo.set(v, c);
+    return c;
+  }
+  function parseColorRaw(v) {
     if (!v || /^(inherit|initial|unset|revert|currentcolor|transparent|none)$/i.test(v) || v.includes('var(')) return null;
     colorCtx = colorCtx || document.createElement('canvas').getContext('2d');
     colorCtx.fillStyle = '#010203';
@@ -113,26 +120,31 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     const [h, s] = toHsl(c);
     return h >= 190 && h <= 260 ? hsla(210, 0.78, 0.617, c[3]) : hsla(h, Math.min(s * 1.4, 0.9), 0.617, c[3]);
   }
-  function darkDecl(style, forceImportant, hover, sel = '') {
-    let out = '';
+  // 回傳 [屬性, 深色值, 是否 important] 清單
+  function darkPairs(style, hover, sel = '') {
+    const out = [];
     for (const [prop, fn] of MAPS) {
       const c = parseColor(style.getPropertyValue(prop));
+      if (!c) continue;
       // 連結滑過（:hover）時跟 GitHub 一樣：顏色不變（網站原本會換深藍，換算後反而變亮），只靠底線
-      const v = c && (hover && prop === 'color' && toHsl(c)[1] > 0.3
-        ? hoverColor(c) : fn(c));
-      if (v && hover && prop === 'color' && toHsl(c)[1] > 0.3 && /(^|[\s>+~,(])a[:.\[]/.test(sel)) out += 'text-decoration:underline;';
-      if (v) out += `${prop}:${v}${forceImportant || style.getPropertyPriority(prop) ? '!important' : ''};`;
+      const link = hover && prop === 'color' && toHsl(c)[1] > 0.3;
+      const v = link ? hoverColor(c) : fn(c);
+      if (!v) continue;
+      if (link && /(^|[\s>+~,(])a[:.\[]/.test(sel)) out.push(['text-decoration', 'underline', false]);
+      out.push([prop, v, !!style.getPropertyPriority(prop)]);
     }
     // 淺色漸層背景直接換成單色
     const bi = style.getPropertyValue('background-image');
     if (bi && bi.includes('gradient')) {
       const cols = (bi.match(/(rgba?\([^)]*\)|#[0-9a-f]{3,8}|\b[a-z]+\b(?=\s*[,)\s]))/gi) || []).map(parseColor).filter(Boolean);
       if (cols.length && cols.every(c => toHsl(c)[2] >= 0.55)) {
-        out += `background-image:none!important;background-color:${mapBg(cols[0])}!important;`;
+        out.push(['background-image', 'none', true], ['background-color', mapBg(cols[0]), true]);
       }
     }
     return out;
   }
+  const darkDecl = (style, hover, sel) =>
+    darkPairs(style, hover, sel).map(([p, v, imp]) => `${p}:${v}${imp ? '!important' : ''};`).join('');
   function splitSelectors(sel) {
     const out = []; let depth = 0, cur = '';
     for (const ch of sel) {
@@ -147,7 +159,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     let css = '';
     for (const r of rules) {
       if (r.selectorText && r.style) {
-        const d = darkDecl(r.style, false, /:(hover|focus|active)/.test(r.selectorText), r.selectorText);
+        const d = darkDecl(r.style, /:(hover|focus|active)/.test(r.selectorText), r.selectorText);
         if (d) css += `${splitSelectors(r.selectorText)}{${d}}\n`;
       } else if (r.media && r.cssRules) {
         const inner = walkRules(r.cssRules);
@@ -162,19 +174,35 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   darkDyn.id = 'fca-dark-dyn';
   const darkInline = document.createElement('style');
   darkInline.id = 'fca-dark-inline';
-  let inlineSeq = 0;
+  // 行內 style 的顏色直接改在元素上（原本的值記在 data-fca-orig，切回日間時還原）。
+  // 舊做法是每個元素產生一條 [data-fca-i="N"] 規則，長頁面會有上千條，比對樣式要好幾秒。
+  const COLOR_PROPS = ['color', 'background-color', 'background-image', 'border-top-color',
+    'border-right-color', 'border-bottom-color', 'border-left-color'];
   function darkInlineFor(root) {
-    let css = '';
     const els = root.nodeType === 1 && root.hasAttribute('style') ? [root] : [];
-    if (root.querySelectorAll) els.push(...root.querySelectorAll('[style]'));
+    if (root.querySelectorAll) els.push(...root.querySelectorAll('[style]:not([data-fca-orig])'));
     for (const el of els) {
-      if (el.closest('#fca-host')) continue;
-      const d = darkDecl(el.style, true);
-      if (!d) continue;
-      if (!el.dataset.fcaI) el.dataset.fcaI = ++inlineSeq;
-      css += `${D} [data-fca-i="${el.dataset.fcaI}"]{${d}}\n`;
+      const st = el.style;
+      if (el.hasAttribute('data-fca-orig') || !(st.color || st.backgroundColor || st.backgroundImage || st.borderColor
+        || st.borderTopColor || st.borderBottomColor || st.borderLeftColor || st.borderRightColor)) continue;
+      const pairs = darkPairs(st, false);
+      if (!pairs.length) continue;
+      const orig = {};
+      for (const p of COLOR_PROPS) orig[p] = [st.getPropertyValue(p), st.getPropertyPriority(p)];
+      el.setAttribute('data-fca-orig', JSON.stringify(orig));
+      for (const [p, v] of pairs) st.setProperty(p, v, 'important');
     }
-    if (css) darkInline.textContent += css;
+  }
+  function undoInline() {
+    document.querySelectorAll('[data-fca-orig]').forEach(el => {
+      try {
+        const orig = JSON.parse(el.getAttribute('data-fca-orig'));
+        for (const p in orig) {
+          if (orig[p][0]) el.style.setProperty(p, orig[p][0], orig[p][1]); else el.style.removeProperty(p);
+        }
+      } catch (e) { /* ignore */ }
+      el.removeAttribute('data-fca-orig');
+    });
   }
   // 換算好的深色 CSS 存起來（依網站 CSS 檔案清單當 key），下一頁直接套用，
   // 不用再等頁面載完、也不用重算。網站 CSS 改版時 key 會變，自動重算。
@@ -217,6 +245,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     // 之後才載入的 CSS、動態加進來的內容也要換色
     window.addEventListener('load', buildDark);
     darkObserver = new MutationObserver(muts => {
+      if (!document.documentElement.hasAttribute('data-fca-dark')) return;
       for (const m of muts) m.addedNodes.forEach(n => { if (n.nodeType === 1) darkInlineFor(n); });
     });
     darkObserver.observe(document.body, { childList: true, subtree: true });
@@ -229,7 +258,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   const darkHooks = [];
   function setDark(on, save) {
     document.documentElement.toggleAttribute('data-fca-dark', on);
-    if (on) ensureDark();
+    if (on) { if (darkReady) darkInlineFor(document.body); else ensureDark(); } else if (darkReady) undoInline();
     if (save) { try { localStorage.setItem(DARK_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ } }
     darkHooks.forEach(f => f(on));
   }
@@ -244,7 +273,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   function main() {
     if (document.documentElement.hasAttribute('data-fca-dark')) ensureDark();
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.11.0';
+    let VERSION = '1.11.1';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
