@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.8.0
+// @version      1.8.2
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      MIT
@@ -26,10 +26,13 @@
   const darkStyle = document.createElement('style');
   darkStyle.id = 'fca-dark-style';
   darkStyle.textContent = `
-html[data-fca-dark]{filter:invert(.92) hue-rotate(180deg) contrast(.95);background:#fff}
+html[data-fca-dark]{filter:invert(.9) hue-rotate(180deg) contrast(1.15);background:#fff}
 html[data-fca-dark] :is(img,video,picture,canvas,iframe,embed,object,.fs-banner,.img-container,[style*="background-image"],:is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar)){filter:${FLIP}}
 html[data-fca-dark] :is(.fs-banner,.img-container,[style*="background-image"],:is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar)) :is(img,video,picture,canvas){filter:none}
-html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar){position:relative;z-index:1030}
+html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar){position:relative;z-index:1030;
+  background:#1c1d21!important;border-color:#1c1d21!important;box-shadow:inset 0 -2px 0 #ffd23c}
+html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) .navbar-nav>li>a:is(:hover,:focus),
+html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) .navbar-nav>.open>a{background:#2a2c31!important;outline:none}
 html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdown-menu,.navbar-collapse.in,.navbar-collapse.collapsing){filter:${FLIP}}
 html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdown-menu,.navbar-collapse.in,.navbar-collapse.collapsing) :is(img,video){filter:none}`;
   (document.head || document.documentElement).appendChild(darkStyle);
@@ -420,12 +423,19 @@ html[data-fca-dark] :is(nav.fs-sysbar,.fs-mobile-navbar nav.navbar) :is(.dropdow
         li.innerHTML = `<a href="#" title="${T.title}"><span class="text">${T.fab}</span><span class="fca-nav-badge" style="${BADGE_STYLE}"></span></a>`;
         li.firstChild.addEventListener('click', open);
         li0.before(li);
-        const dl = document.createElement('li');
-        dl.className = 'fca-nav fca-theme';
-        dl.innerHTML = '<a href="#"><span class="font-icon fas" aria-hidden="true"></span></a>';
-        dl.firstChild.addEventListener('click', toggleDark);
-        li.before(dl);
         $('.fab').classList.add('nd');
+      }
+
+      // 電腦版：日夜切換放在左上角網站名稱右邊
+      const brand = document.querySelector('nav.fs-sysbar .navbar-header > .navbar-brand');
+      if (brand) {
+        const d = document.createElement('a');
+        d.href = '#';
+        d.className = 'navbar-brand fca-nav fca-theme';
+        d.style.marginLeft = '4px';
+        d.innerHTML = '<span class="font-icon fas" aria-hidden="true"></span>';
+        d.addEventListener('click', toggleDark);
+        brand.after(d);
       }
 
       const btns = document.querySelector('.navbar-header .fs-navbar-btns');
