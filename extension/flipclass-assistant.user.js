@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      1.13.0
+// @version      2.0.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      CC-BY-NC-SA-4.0
@@ -280,7 +280,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     try { framed = window.top !== window.self; } catch (e) { /* 跨網域的上層視窗 */ }
     if (framed) return;
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '1.13.0';
+    let VERSION = '2.0.0';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
