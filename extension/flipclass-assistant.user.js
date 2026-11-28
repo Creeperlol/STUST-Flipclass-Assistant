@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         STUST Flipclass Assistant
 // @namespace    https://github.com/Creeperlol/STUST-Flipclass-Assistant
-// @version      2.0.0
+// @version      2.1.0
 // @description  FlipClass assignment overview: submitted / to do / overdue across all courses (follows the site language)
 // @author       Creeperlol
 // @license      CC-BY-NC-SA-4.0
 // @match        https://flipclass.stust.edu.tw/*
+// @match        https://webap.stust.edu.tw/courinfo/*
 // @run-at       document-start
 // @grant        none
 // @homepageURL  https://github.com/Creeperlol/STUST-Flipclass-Assistant
@@ -18,6 +19,26 @@
   'use strict';
   if (window.__fcaLoaded) return;
   window.__fcaLoaded = true;
+
+  // ---------- 學校的課程大綱頁 ----------
+  // FlipClass 的「我的課表」不知道上課時間，但課程資訊裡嵌的課程大綱（webap.stust.edu.tw）有。
+  // 這裡只做一件事：被 FlipClass 用 iframe 打開時，把「上課教室(時間)」傳回去，其他什麼都不動。
+  if (location.hostname === 'webap.stust.edu.tw') {
+    const send = () => {
+      if (window.parent === window) return;
+      const txt = (document.body && document.body.textContent) || '';
+      const part = (txt.split(/上課教室\s*[(（]\s*時間\s*[)）]/)[1] || '').split(/課程時數/)[0];
+      const DAY = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 };
+      const slots = [];
+      for (const m of part.matchAll(/週\s*([一二三四五六日天])\s*第\s*(\d+)\s*節\s*(?:[(（]([^)）]*)[)）])?/g)) {
+        slots.push({ day: DAY[m[1]], p: +m[2], room: (m[3] || '').trim().slice(0, 40) });
+      }
+      const code = new URLSearchParams(location.search).get('subcode');
+      window.parent.postMessage({ fcaTimetable: 1, code, slots }, 'https://flipclass.stust.edu.tw');
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', send); else send();
+    return;
+  }
 
   // ---------- 夜間模式 ----------
   // 不用整頁反轉：讀取網站自己的 CSS，把淺色背景換成深灰、深色文字換成淺色，
@@ -54,7 +75,27 @@ ${D} .fca-about a:hover{color:#4493f8!important}
 .fca-about a{display:block;padding:11px 0 10px;font-size:11px;line-height:14px;text-align:right;font-weight:400;opacity:.8;
   color:inherit;text-decoration:none}
 .fca-about a:hover{opacity:1;text-decoration:none}
-@media (max-width:1599px){.fca-about{display:none!important}}`;
+@media (max-width:1599px){.fca-about{display:none!important}}
+.fca-about-li>a{font-size:11px!important;opacity:.7}
+.fca-about-li>a:hover{opacity:1}
+nav.fca-tight li.fca-nav>a{padding-left:7px!important;padding-right:7px!important}
+@media (min-width:1600px){.fca-about-li{display:none!important}}
+.fca-hw{display:inline-flex;align-items:center;gap:8px;margin-left:12px;font-size:13px;font-weight:600;vertical-align:middle}
+.fca-hw .t{padding:1px 8px;border:1px solid currentColor;font-size:12px;font-weight:700}
+.fca-todo{color:#9a6700}.fca-missed{color:#cf222e}.fca-done{color:#1a7f37}.fca-sub{color:#59636e;font-weight:500}
+${D} .fca-todo{color:#d29922!important}${D} .fca-missed{color:#f85149!important}${D} .fca-done{color:#3fb950!important}${D} .fca-sub{color:#9198a1!important}
+:root tr.fca-row-todo>td{background:rgba(212,167,44,.13)!important}
+:root tr.fca-row-missed>td{background:rgba(207,34,46,.09)!important}
+:root tr.fca-row-todo>td:first-child{box-shadow:inset 3px 0 #d4a72c}
+:root tr.fca-row-missed>td:first-child{box-shadow:inset 3px 0 #cf222e}
+${D} tr.fca-row-todo>td{background:rgba(210,153,34,.14)!important}
+${D} tr.fca-row-missed>td{background:rgba(248,81,73,.11)!important}
+.fca-tt{text-align:left;font-size:12px;line-height:1.35;padding:4px 6px;margin:2px 0;background:rgba(212,167,44,.14);border-left:3px solid #d4a72c}
+.fca-tt a{font-weight:600}
+.fca-tt small{display:block;opacity:.75;font-size:11px}
+.fca-tt-note{margin-left:12px;font-size:12px;opacity:.8}
+.fca-nav-urgent{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:8px;background:#f85149;color:#fff;
+  font-size:11px;line-height:16px;text-align:center;font-weight:700;vertical-align:1px}`;
   (document.head || document.documentElement).appendChild(darkBase);
 
   // 顏色換算（HSL）
@@ -280,7 +321,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     try { framed = window.top !== window.self; } catch (e) { /* 跨網域的上層視窗 */ }
     if (framed) return;
     const REPO = 'https://github.com/Creeperlol/STUST-Flipclass-Assistant';
-    let VERSION = '2.0.0';
+    let VERSION = '2.1.0';
     try { VERSION = GM_info.script.version; } catch (e) {
       try { VERSION = chrome.runtime.getManifest().version; } catch (e2) { /* bookmarklet */ }
     }
@@ -398,7 +439,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     // ---------- 語言：跟著 FlipClass 右上角選的語言（English / 繁體 / 简体） ----------
     const I18N = {
       en: {
-        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', noLate: 'No late submission', avatar: 'Change photo', avatarReset: 'Reset photo', crop: 'Adjust photo', cropHint: 'Drag to move · scroll or slide to zoom', save: 'Save', cancel: 'Cancel', zoom: 'Zoom',
+        fab: 'Assignments', showAll: 'Show all assignments', title: 'Assignments', refresh: 'Refresh', close: 'Close', dark: 'Dark mode', light: 'Light mode', noLate: 'No late submission', dueSoon: n => `${n} due within 24 hours`, ics: 'Export to calendar (.ics)', allCourses: 'All courses', sortDue: 'Sort: deadline', sortCourse: 'Sort: course', ttNote: 'Filled in from course syllabi (only shown in this browser)', ttReload: 'Reload', ttLoading: 'Loading class times…', ttFail: 'Could not load class times', avatar: 'Change photo', avatarReset: 'Reset photo', crop: 'Adjust photo', cropHint: 'Drag to move · scroll or slide to zoom', save: 'Save', cancel: 'Cancel', zoom: 'Zoom',
         todo: 'To do', missed: 'Overdue', done: 'Submitted', all: 'All',
         updated: (t, n) => `Updated ${t} · ${n} total`,
         left: (d, h) => d > 0 ? `${d}d ${h}h left` : `${h}h left`,
@@ -406,7 +447,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: 'No matching assignments', error: 'Failed to load. Tap refresh to try again.',
       },
       'zh-TW': {
-        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', noLate: '不可遲交', avatar: '更換頭像', avatarReset: '還原頭像', crop: '調整頭像', cropHint: '拖曳移動位置・滾輪或拉桿縮放', save: '儲存', cancel: '取消', zoom: '縮放',
+        fab: '作業', showAll: '所有作業', title: '作業總覽', refresh: '重新整理', close: '關閉', dark: '夜間模式', light: '日間模式', noLate: '不可遲交', dueSoon: n => `${n} 份 24 小時內到期`, ics: '匯出到行事曆（.ics）', allCourses: '全部課程', sortDue: '依截止日', sortCourse: '依課程', ttNote: '已從課程大綱自動填入（只顯示在這個瀏覽器）', ttReload: '重新抓取', ttLoading: '正在讀取上課時間…', ttFail: '讀取上課時間失敗', avatar: '更換頭像', avatarReset: '還原頭像', crop: '調整頭像', cropHint: '拖曳移動位置・滾輪或拉桿縮放', save: '儲存', cancel: '取消', zoom: '縮放',
         todo: '進行中', missed: '已過期', done: '已繳交', all: '全部',
         updated: (t, n) => `更新於 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小時` : `剩 ${h} 小時`,
@@ -414,7 +455,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         noMatch: '找不到符合的作業', error: '讀取失敗，請按重新整理再試一次',
       },
       'zh-CN': {
-        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', noLate: '不可迟交', avatar: '更换头像', avatarReset: '还原头像', crop: '调整头像', cropHint: '拖动移动位置・滚轮或拉杆缩放', save: '保存', cancel: '取消', zoom: '缩放',
+        fab: '作业', showAll: '所有作业', title: '作业总览', refresh: '刷新', close: '关闭', dark: '夜间模式', light: '日间模式', noLate: '不可迟交', dueSoon: n => `${n} 份 24 小时内到期`, ics: '导出到日历（.ics）', allCourses: '全部课程', sortDue: '按截止日', sortCourse: '按课程', ttNote: '已从课程大纲自动填入（只显示在这个浏览器）', ttReload: '重新获取', ttLoading: '正在读取上课时间…', ttFail: '读取上课时间失败', avatar: '更换头像', avatarReset: '还原头像', crop: '调整头像', cropHint: '拖动移动位置・滚轮或拉杆缩放', save: '保存', cancel: '取消', zoom: '缩放',
         todo: '进行中', missed: '已过期', done: '已缴交', all: '全部',
         updated: (t, n) => `更新于 ${t}・共 ${n} 份`,
         left: (d, h) => d > 0 ? `剩 ${d} 天 ${h} 小时` : `剩 ${h} 小时`,
@@ -452,6 +493,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       close: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
       search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
       cal: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+      ics: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5 12 18l2.5-2.5"/></svg>',
       book: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/></svg>',
     };
 
@@ -498,6 +540,8 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   .hd-row{display:flex;align-items:flex-start;gap:6px}
   .ttl{flex:1;min-width:0}
   .code{font-size:11px;letter-spacing:3px;color:var(--acc);font-weight:600}
+  .code .ver{color:inherit;text-decoration:none}
+  .code .ver:hover{text-decoration:underline}
   .hd h2{margin:2px 0 0;font-size:26px;font-weight:800;letter-spacing:1px;line-height:1.15}
   .icon-btn{border:1px solid var(--line2);background:transparent;color:var(--ink);width:36px;height:36px;border-radius:0;
     display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
@@ -531,6 +575,13 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     padding:10px 4px 10px 26px;font-size:14px;color:var(--ink);outline:none;transition:border-color .15s}
   .search input::placeholder{color:var(--dim)}
   .search input:focus{border-bottom-color:var(--acc)}
+  .tools{display:flex;gap:8px;margin:8px 22px 2px;flex:none}
+  .tools select{flex:1;min-width:0;background:var(--panel);color:var(--ink);border:1px solid var(--line2);border-radius:0;
+    padding:6px 8px;font:inherit;font-size:13px;outline:none;cursor:pointer}
+  .tools select.sort{flex:none;width:auto}
+  .tools select:focus{border-color:var(--acc)}
+  .stat .u{position:absolute;right:8px;top:8px;background:var(--missed);color:#fff;font-size:11px;font-weight:700;
+    padding:0 6px;line-height:17px}
 
   /* 清單 */
   .list{flex:1;overflow:auto;padding:8px 22px 28px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
@@ -541,6 +592,9 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     transition:background .15s,border-color .15s;animation:rise .3s ease both}
   .item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
   .item.todo{--c:var(--todo)}.item.missed{--c:var(--missed)}.item.done{--c:var(--done)}
+  .item.urgent{--c:var(--missed);border-color:rgba(255,90,78,.35)}
+  .item.urgent::before{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.35}}
   .item:hover{background:var(--panel2)}
   @keyframes rise{from{opacity:0}to{opacity:1}}
   .top-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -563,6 +617,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
 
   @media (max-width:600px){
     .hd{padding:16px 16px 0}.stats{margin:12px 16px 0}.search{margin:10px 16px 4px}.list{padding:4px 16px 20px}
+    .tools{margin:8px 16px 2px}
     .hd h2{font-size:22px}.stat{padding:10px 9px}.stat .n{font-size:24px}.stat .l{font-size:11px}
     .fab{right:12px;bottom:12px}
   }
@@ -594,7 +649,8 @@ ${D} .fca-about a:hover{color:#4493f8!important}
   <button class="fab" title="${T.title}">${T.fab} <span class="b">…</span></button>
   <aside class="drawer" role="dialog" aria-modal="true" aria-label="${T.title}">
     <div class="hd">
-      <div class="hd-row"><div class="ttl"><div class="code">ASSIGNMENT / STUST FLIPCLASS</div><h2>${T.title}</h2></div>
+      <div class="hd-row"><div class="ttl"><div class="code">ASSIGNMENT / STUST FLIPCLASS · <a class="ver" href="${REPO}" target="_blank" rel="noopener" title="GitHub">V${VERSION}</a></div><h2>${T.title}</h2></div>
+        <button class="icon-btn ics" title="${T.ics}" aria-label="${T.ics}">${ICON.ics}</button>
         <button class="icon-btn theme"></button>
         <button class="icon-btn refresh" title="${T.refresh}" aria-label="${T.refresh}">${ICON.refresh}</button>
         <button class="icon-btn close" title="${T.close}" aria-label="${T.close}">${ICON.close}</button></div>
@@ -602,6 +658,8 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     </div>
     <div class="stats"></div>
     <label class="search">${ICON.search}<input type="search" placeholder="${T.search}" aria-label="${T.search}"></label>
+    <div class="tools"><select class="course" aria-label="${T.allCourses}"></select>
+      <select class="sort" aria-label="${T.sortDue}"><option value="due">${T.sortDue}</option><option value="course">${T.sortCourse}</option></select></div>
     <div class="list"></div>
   </aside>
   <div class="crop" role="dialog" aria-modal="true" aria-label="${T.crop}">
@@ -616,6 +674,12 @@ ${D} .fca-about a:hover{color:#4493f8!important}
 
     const $ = s => root.querySelector(s);
     let data = null, filter = 'todo', query = '';
+    let fitNav = () => {};
+    const UI_KEY = 'fca-ui-v1';
+    let ui = { course: '', sort: 'due' };
+    try { ui = { ...ui, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') }; } catch (e) { /* ignore */ }
+    const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) { /* ignore */ } };
+    const DAY_MS = 24 * 3600 * 1000;
 
     function fmt(ts) {
       const d = new Date(ts), p = n => String(n).padStart(2, '0');
@@ -632,24 +696,40 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       const now = Date.now();
       if (!data) return;
       const items = data.items.map(h => ({ ...h, st: statusOf(h, now) }));
+      items.forEach(h => { h.urgent = h.st === 'todo' && h.deadline && h.deadline - now < DAY_MS; });
       const n = { todo: 0, missed: 0, done: 0, all: items.length };
       items.forEach(h => n[h.st]++);
+      const nUrgent = items.filter(h => h.urgent).length;
 
       const badge = $('.fab .b');
       badge.textContent = n.todo;
       badge.classList.toggle('ok', n.todo === 0);
-      document.querySelectorAll('.fca-nav-badge').forEach(b => { b.textContent = `(${n.todo})`; });
+      document.querySelectorAll('.fca-nav-badge').forEach(b => {
+        b.innerHTML = `(${n.todo})` + (nUrgent ? `<span class="fca-nav-urgent" title="${esc(T.dueSoon(nUrgent))}">${nUrgent}</span>` : '');
+      });
+      fitNav();
+      updateHomeworkPage(items, now);
 
       $('.meta').textContent = T.updated(fmt(data.time), items.length);
       $('.stats').innerHTML = ['todo', 'missed', 'done', 'all'].map(k =>
         `<button class="stat ${k}${k === filter ? ' on' : ''}" data-f="${k}" aria-pressed="${k === filter}">
+           ${k === 'todo' && nUrgent ? `<span class="u" title="${esc(T.dueSoon(nUrgent))}">${nUrgent}</span>` : ''}
            <div class="n">${n[k]}</div><div class="l">${T[k]}</div></button>`).join('');
+
+      // 課程下拉選單：只列有作業的課
+      const courses = [...new Set(items.map(h => h.course))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+      if (ui.course && !courses.includes(ui.course)) ui.course = '';
+      $('.tools .course').innerHTML = `<option value="">${T.allCourses}</option>` +
+        courses.map(c => `<option value="${esc(c)}"${c === ui.course ? ' selected' : ''}>${esc(c)}</option>`).join('');
+      $('.tools .sort').value = ui.sort;
 
       const q = query.trim().toLowerCase();
       const shown = items
         .filter(h => filter === 'all' || h.st === filter)
+        .filter(h => !ui.course || h.course === ui.course)
         .filter(h => !q || (h.title + ' ' + h.course).toLowerCase().includes(q))
         .sort((a, b) => {
+          if (ui.sort === 'course' && a.course !== b.course) return a.course.localeCompare(b.course, 'zh-Hant');
           if (ORDER[a.st] !== ORDER[b.st]) return ORDER[a.st] - ORDER[b.st];
           const da = a.deadline ?? Infinity, db = b.deadline ?? Infinity;
           return a.st === 'todo' ? da - db : db - da;
@@ -659,7 +739,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         const left = h.st === 'todo' && h.deadline ? leftInfo(h.deadline, now) : null;
         const score = h.st === 'done' && h.score && h.score !== '-' ? `<span class="score">${esc(h.score)}</span>` : '';
         return `
-        <a class="item ${h.st}" href="${esc(h.href)}" style="animation-delay:${Math.min(i, 12) * 28}ms">
+        <a class="item ${h.st}${h.urgent ? ' urgent' : ''}" href="${esc(h.href)}" style="animation-delay:${Math.min(i, 12) * 28}ms">
           <div class="top-row"><span class="idx">${String(i + 1).padStart(2, '0')}</span><span class="tag">${TG[h.st]}</span>${h.st === 'missed' && lateOK(h) === false ? `<span class="tag nolate">${T.noLate}</span>` : ''}
             ${left ? `<span class="left ${left.cls}">${left.text}</span>` : score}</div>
           <div class="title">${esc(h.title)}</div>
@@ -667,6 +747,185 @@ ${D} .fca-about a:hover{color:#4493f8!important}
             <span>${ICON.book}${esc(h.course)}</span></div>
         </a>`;
       }).join('') : `<div class="msg">${q ? T.noMatch : T.empty}</div>`;
+    }
+
+    // ---------- 作業內容頁：截止時間旁邊顯示狀態和倒數 ----------
+    function updateHomeworkPage(items, now) {
+      const m = location.pathname.match(/^\/course\/homework\/(\d+)/);
+      if (!m) return;
+      // 開始／截止時間都是 "YYYY-MM-DD HH:MM"，最後一個就是截止時間（不看標籤文字，任何語言都適用）
+      const dds = [...document.querySelectorAll('dl dd')].filter(dd =>
+        !dd.closest('.fca-hw') && /^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/.test(dd.firstChild ? dd.firstChild.textContent.trim() : ''));
+      const dd = dds[dds.length - 1];
+      if (!dd) return;
+      const t = dd.firstChild.textContent.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
+      const deadline = new Date(+t[1], t[2] - 1, +t[3], +t[4], +t[5]).getTime();
+      const h = items.find(x => hwId(x) === m[1]);
+      const st = h ? h.st : (deadline < now ? null : 'open');
+      let html = '';
+      if (st === 'done') html = `<span class="t fca-done">${TG.done}</span>`;
+      else if (st === 'missed') html = `<span class="t fca-missed">${TG.missed}</span>`;
+      else if (st) {
+        const left = leftInfo(deadline, now);
+        html = (h ? `<span class="t fca-todo">${TG.todo}</span>` : '') +
+          `<span class="${left.cls === 'urgent' ? 'fca-missed' : left.cls === 'soon' ? 'fca-todo' : 'fca-sub'}">${left.text}</span>`;
+      }
+      let box = dd.querySelector('.fca-hw');
+      if (!html) { if (box) box.remove(); return; }
+      if (!box) { box = document.createElement('span'); box.className = 'fca-hw'; dd.appendChild(box); }
+      box.innerHTML = html;
+    }
+
+    // ---------- 課程作業列表：沒交的整列標底色 ----------
+    function markHomeworkList() {
+      if (!/^\/course\/homeworkList\/\d+/.test(location.pathname)) return;
+      const now = new Date();
+      document.querySelectorAll('table tbody tr').forEach(tr => {
+        if (!tr.querySelector('a[href^="/course/homework/"]')) return;
+        const submitTd = tr.querySelector('td.col-char2');
+        if (!submitTd || submitTd.querySelector('.fa-check')) return;
+        const dates = tr.querySelectorAll('td.col-date');
+        const d = dates.length ? inferDate(dates[dates.length - 1].textContent, now) : null;
+        tr.classList.add(d && d < now ? 'fca-row-missed' : 'fca-row-todo');
+      });
+    }
+
+    // ---------- 匯出到行事曆（.ics）：未繳、還沒過期的作業 ----------
+    function exportIcs() {
+      if (!data) return;
+      const now = Date.now();
+      const list = data.items.filter(h => statusOf(h, now) === 'todo' && h.deadline);
+      const z = ts => new Date(ts).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      const e = v => String(v).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+      const enc = new TextEncoder();
+      const fold = line => { // 每行最多 75 bytes，超過就折行（中文一個字 3 bytes）
+        let out = '', cur = '', n = 0;
+        for (const ch of line) {
+          const b = enc.encode(ch).length;
+          if (n + b > (out ? 74 : 75)) { out += (out ? '\r\n ' : '') + cur; cur = ''; n = 0; }
+          cur += ch; n += b;
+        }
+        return out + (out ? '\r\n ' : '') + cur;
+      };
+      const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//STUST Flipclass Assistant//EN', 'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH', 'X-WR-CALNAME:FlipClass'];
+      list.forEach(h => {
+        const url = new URL(h.href, location.origin).href;
+        L.push('BEGIN:VEVENT', `UID:fca-${hwId(h) || encodeURIComponent(h.href)}@flipclass.stust.edu.tw`, `DTSTAMP:${z(now)}`,
+          `DTSTART:${z(h.deadline - 30 * 60000)}`, `DTEND:${z(h.deadline)}`, `SUMMARY:${e(h.title)}`,
+          `DESCRIPTION:${e(h.course + '\n' + url)}`, `URL:${url}`,
+          'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${e(h.title)}`, 'TRIGGER:-P1D', 'END:VALARM',
+          'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${e(h.title)}`, 'TRIGGER:-PT3H', 'END:VALARM', 'END:VEVENT');
+      });
+      L.push('END:VCALENDAR');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([L.map(fold).join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' }));
+      a.download = 'flipclass-assignments.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    }
+
+    // ---------- 我的課表：從課程大綱抓上課時間自動填入（只顯示，不會存到網站） ----------
+    const TT_KEY = 'fca-tt-v1';
+    const TT_MS = 7 * DAY_MS;
+    const CN = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    function periodOf(label) { // 「第十一節」→ 11
+      const m = label.match(/第\s*([一二三四五六七八九十\d]+)\s*節/);
+      if (!m) return null;
+      const t = m[1];
+      if (/^\d+$/.test(t)) return +t;
+      const i = t.indexOf('十');
+      if (i < 0) return CN[t] || null;
+      return (i ? CN[t[0]] : 1) * 10 + (t[i + 1] ? CN[t[i + 1]] : 0);
+    }
+    function syllabusSlots(list) {
+      // 課程大綱在另一個網域，不能直接 fetch：用看不見的 iframe 打開，裡面的這支腳本會把上課時間 postMessage 回來
+      return new Promise(resolve => {
+        const got = {}, frames = [];
+        let left = list.length;
+        const finish = () => { clearTimeout(timer); window.removeEventListener('message', onMsg); frames.forEach(f => f.remove()); resolve(got); };
+        const timer = setTimeout(finish, 20000);
+        function onMsg(ev) {
+          const d = ev.data;
+          if (ev.origin !== 'https://webap.stust.edu.tw' || !d || d.fcaTimetable !== 1 || typeof d.code !== 'string' || d.code in got) return;
+          got[d.code] = (Array.isArray(d.slots) ? d.slots : []).filter(x => x && x.day >= 1 && x.day <= 7 && x.p >= 1 && x.p <= 20)
+            .map(x => ({ day: +x.day, p: +x.p, room: String(x.room || '').slice(0, 40) }));
+          if (--left <= 0) finish();
+        }
+        window.addEventListener('message', onMsg);
+        list.forEach(c => {
+          const f = document.createElement('iframe');
+          f.src = c.src;
+          f.tabIndex = -1;
+          f.setAttribute('aria-hidden', 'true');
+          f.style.cssText = 'position:absolute;left:-9999px;top:0;width:10px;height:10px;border:0;visibility:hidden';
+          document.body.appendChild(f);
+          frames.push(f);
+        });
+      });
+    }
+    async function loadTimetable(force) {
+      if (!force) {
+        try { const c = JSON.parse(localStorage.getItem(TT_KEY) || 'null'); if (c && Date.now() - c.time < TT_MS) return c; } catch (e) { /* ignore */ }
+      }
+      const courses = await getCourses();
+      if (!courses) return null;
+      const infos = (await mapLimit(courses, 3, async c => {
+        try {
+          const { doc } = await fetchDoc('/course/info/' + c.id);
+          const f = doc.querySelector('iframe[src*="webap.stust.edu.tw/courinfo/"]');
+          if (!f) return null;
+          const u = new URL(f.getAttribute('src'), location.href);
+          if (u.origin !== 'https://webap.stust.edu.tw') return null;
+          return { ...c, src: u.href, code: u.searchParams.get('subcode'), term: +u.searchParams.get('year') * 10 + +u.searchParams.get('semes') };
+        } catch (e) { return null; }
+      })).filter(x => x && x.code);
+      if (!infos.length) return { time: Date.now(), items: [] };
+      const term = Math.max(...infos.map(x => x.term)); // 只要這學期的課
+      const cur = infos.filter(x => x.term === term);
+      const got = await syllabusSlots(cur);
+      if (!Object.keys(got).length) throw new Error('no syllabus');
+      const tt = { time: Date.now(), items: cur.flatMap(c => (got[c.code] || []).map(x => ({ ...x, id: c.id, name: c.name }))) };
+      try { localStorage.setItem(TT_KEY, JSON.stringify(tt)); } catch (e) { /* ignore */ }
+      return tt;
+    }
+    function renderTimetable(tt) {
+      const table = [...document.querySelectorAll('table')].find(t => t.tBodies[0] && periodOf(t.tBodies[0].textContent || ''));
+      if (!table) return;
+      table.querySelectorAll('.fca-tt').forEach(e => e.remove());
+      const rows = {};
+      [...table.tBodies[0].rows].forEach(tr => { const p = tr.cells[0] && periodOf(tr.cells[0].textContent); if (p) rows[p] = tr; });
+      tt.items.forEach(x => {
+        const td = rows[x.p] && rows[x.p].cells[x.day];
+        if (!td) return;
+        const div = document.createElement('div');
+        div.className = 'fca-tt';
+        div.innerHTML = `<a href="/course/${esc(x.id)}">${esc(x.name.replace(/_[^_]*$/, ''))}</a>${x.room ? `<small>${esc(x.room)}</small>` : ''}`;
+        td.appendChild(div);
+      });
+    }
+    async function mountTimetable() {
+      if (location.pathname !== '/dashboard/myTimeTable') return;
+      const setting = document.querySelector('a[data-url*="myTimeTableSetting"]');
+      const note = document.createElement('span');
+      note.className = 'fca-nav fca-tt-note';
+      if (setting) setting.after(note); else return;
+      const run = async force => {
+        note.textContent = T.ttLoading;
+        try {
+          const tt = await loadTimetable(force);
+          if (!tt) { note.remove(); return; }
+          renderTimetable(tt);
+          note.innerHTML = `${esc(T.ttNote)} · <a href="#">${esc(T.ttReload)}</a>`;
+          note.querySelector('a').addEventListener('click', e => { e.preventDefault(); run(true); });
+        } catch (e) {
+          note.innerHTML = `${esc(T.ttFail)} · <a href="#">${esc(T.ttReload)}</a>`;
+          note.querySelector('a').addEventListener('click', ev => { ev.preventDefault(); run(true); });
+        }
+      };
+      run(false);
     }
 
     // ---------- 是否允許遲交（只查已過期的，查過就記住） ----------
@@ -749,6 +1008,24 @@ ${D} .fca-about a:hover{color:#4493f8!important}
         about.innerHTML = `<a href="${REPO}" target="_blank" rel="noopener" title="GitHub">STUST Flipclass Assistant<br>v${VERSION}</a>`;
         if (getComputedStyle(nav).position === 'static') nav.style.position = 'relative';
         nav.appendChild(about);
+        const ul = li0.closest('ul');
+        const aboutLi = document.createElement('li');
+        aboutLi.className = 'fca-nav fca-about-li';
+        aboutLi.innerHTML = `<a href="${REPO}" target="_blank" rel="noopener" title="STUST Flipclass Assistant · GitHub">v${VERSION}</a>`;
+        ul.appendChild(aboutLi);
+        // 導覽列被擠成兩行時：先藏版本標示，還是放不下就把「作業」按鈕左右留白縮小
+        const brandEl = nav.querySelector('.navbar-header');
+        const wrapped = () => innerWidth >= 768 && brandEl &&
+          ul.getBoundingClientRect().top - brandEl.getBoundingClientRect().top > 10;
+        fitNav = () => {
+          nav.classList.remove('fca-tight');
+          aboutLi.style.display = '';
+          if (wrapped()) aboutLi.style.display = 'none';
+          if (wrapped()) nav.classList.add('fca-tight');
+        };
+        fitNav();
+        window.addEventListener('resize', fitNav);
+        window.addEventListener('load', fitNav, { once: true });
         $('.fab').classList.add('nd');
       }
 
@@ -838,6 +1115,9 @@ ${D} .fca-about a:hover{color:#4493f8!important}
       if (b && b.dataset.f !== filter) { filter = b.dataset.f; render(); $('.list').scrollTop = 0; }
     });
     $('.search input').addEventListener('input', e => { query = e.target.value; render(); });
+    $('.tools .course').addEventListener('change', e => { ui.course = e.target.value; saveUI(); render(); $('.list').scrollTop = 0; });
+    $('.tools .sort').addEventListener('change', e => { ui.sort = e.target.value; saveUI(); render(); });
+    $('.ics').addEventListener('click', exportIcs);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen) setOpen(false); });
     window.addEventListener('resize', () => { if (isOpen) syncTop(); });
 
@@ -1015,7 +1295,7 @@ ${D} .fca-about a:hover{color:#4493f8!important}
     }
 
     // 登入頁不載入
-    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); mountAvatar(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); startup(); }
+    if (!location.pathname.startsWith('/index/login')) { mountNav(); mountRecentEvent(); mountAvatar(); markHomeworkList(); mountTimetable(); syncDarkUI(document.documentElement.hasAttribute('data-fca-dark')); startup(); }
     else host.remove();
   }
 
